@@ -1,0 +1,39 @@
+# ===================== Build output =====================
+build/
+bin/
+out/
+
+# ===================== Gradle =====================
+.gradle/
+# NOTE: the Gradle wrapper is committed on purpose (gradlew, gradlew.bat and
+# gradle/wrapper/*). It lets anyone build the project and import it into an IDE
+# without installing Gradle, so it must NOT be ignored.
+
+# ===================== Eclipse / Spring Tool Suite =====================
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated/
+
+# ===================== IntelliJ IDEA =====================
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ===================== VS Code =====================
+.vscode/
+
+# ===================== Kotlin =====================
+.kotlin/
+
+# ===================== OS files =====================
+.DS_Store
+Thumbs.db
+
+# Eclipse
+.project
+.classpath
+.settings/
+bin/
