@@ -3,16 +3,17 @@ package es.deusto.sd.ecoembes.dto;
 import java.time.LocalDate;
 import java.util.List;
 
+// DTO: petición de asignación. El token del empleado viaja en userToken, dentro del cuerpo.
 public class AssignmentRequestDTO {
 	private String plantId;
 	private List<String> containerIds;
 	private LocalDate date;
 	private String userToken;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public AssignmentRequestDTO() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public AssignmentRequestDTO(String plantId, List<String> containerIds, LocalDate date, String userToken) {
 		this.plantId = plantId;
 		this.containerIds = containerIds;
@@ -20,7 +21,7 @@ public class AssignmentRequestDTO {
 		this.userToken = userToken;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getPlantId() {
 		return plantId;
 	}

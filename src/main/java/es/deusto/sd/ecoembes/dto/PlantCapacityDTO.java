@@ -2,16 +2,17 @@ package es.deusto.sd.ecoembes.dto;
 
 import java.time.LocalDate;
 
+// DTO: capacidad disponible de una planta en una fecha, en toneladas.
 public class PlantCapacityDTO {
 	private String plantId;
 	private String plantName;
 	private LocalDate date;
 	private Float capacity;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public PlantCapacityDTO() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public PlantCapacityDTO(String plantId, String plantName, LocalDate date, Float capacity) {
 		this.plantId = plantId;
 		this.plantName = plantName;
@@ -19,7 +20,7 @@ public class PlantCapacityDTO {
 		this.capacity = capacity;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getPlantId() {
 		return plantId;
 	}

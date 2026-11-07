@@ -8,16 +8,21 @@ import org.springframework.stereotype.Service;
 
 import es.deusto.sd.ecoembes.entity.Employee;
 
+// Patrón AppService: contiene la lógica de autenticación y el ESTADO DEL SERVIDOR (empleados y sesiones
+// activas). Guardar las sesiones en memoria evita consultar la base de datos en cada petición, como pide
+// el enunciado. Los mapas son ConcurrentHashMap porque este bean es único (singleton) y lo comparten
+// todos los hilos que atienden peticiones.
 @Service
 public class AuthService {
 
-	// Simulating an employee repository (thread-safe: shared across request threads)
+	// Simula un repositorio de empleados, indexado por email
 	private final Map<String, Employee> employeeRepository = new ConcurrentHashMap<>();
 
-	// Storage to keep the session of the employees that are logged in
+	// Sesiones activas: token -> empleado que ha iniciado sesión
 	private final Map<String, Employee> tokenStore = new ConcurrentHashMap<>();
 
-	// Login method that checks if the employee exists and validates the password
+	// Inicio de sesión: comprueba que el empleado existe y que la contraseña es correcta.
+	// Devuelve el token generado, o vacío si las credenciales no son válidas.
 	public Optional<String> login(String email, String password) {
 		if (email == null || password == null) {
 			return Optional.empty();
@@ -35,7 +40,7 @@ public class AuthService {
 		}
 	}
 
-	// Logout method to remove the token from the session store
+	// Cierre de sesión: elimina el token de las sesiones activas. Vacío si el token no estaba activo.
 	public Optional<Boolean> logout(String token) {
 		if (token != null && tokenStore.remove(token) != null) {
 			return Optional.of(true);
@@ -44,19 +49,21 @@ public class AuthService {
 		}
 	}
 
-	// Method to add a new employee to the repository
+	// Añade un empleado al repositorio (si ya existe uno con ese email, no lo sustituye)
 	public void addEmployee(Employee employee) {
 		if (employee != null) {
 			employeeRepository.putIfAbsent(employee.getEmail(), employee);
 		}
 	}
 
-	// Method to get the employee based on the token
+	// Devuelve el empleado de una sesión activa, o null si el token no es válido.
+	// Lo usan otros servicios y controllers para autenticar y para auditar (quién hace cada operación).
 	public Employee getEmployeeByToken(String token) {
 		return token == null ? null : tokenStore.get(token);
 	}
 
-	// Token = current time in millis (required by the case study); retry on collision
+	// El token es la hora actual en milisegundos (lo exige el enunciado). Si dos inicios de sesión
+	// coinciden en el mismo milisegundo, se reintenta para no pisar la sesión anterior.
 	private synchronized String generateToken() {
 		String token;
 

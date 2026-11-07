@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import org.apache.commons.codec.digest.DigestUtils;
 
+// Entidad de dominio: empleado de Ecoembes que usa la API.
 public class Employee {
 
 	private long id;
@@ -11,24 +12,24 @@ public class Employee {
 	private String email;
 	private String password;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public Employee() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public Employee(long id, String name, String email, String password) {
 		this.id = id;
 		this.name = name;
 		this.email = email;
-		// Passwords are never stored in plain text: only the SHA-1 hash is kept
+		// Las contraseñas nunca se guardan en claro: solo se conserva su hash SHA-1
 		this.password = DigestUtils.sha1Hex(password);
 	}
 
-	// Compare the hash of the provided password against the stored hash
+	// Compara el hash de la contraseña recibida con el hash almacenado
 	public boolean checkPassword(String password) {
 		return this.password.equals(DigestUtils.sha1Hex(password));
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public long getId() {
 		return id;
 	}
@@ -53,12 +54,12 @@ public class Employee {
 		this.email = email;
 	}
 
-	// Note: there is no getPassword() on purpose, the hash is never exposed
+	// Nota: no hay getPassword() a propósito, el hash nunca se expone
 	public void setPassword(String password) {
 		this.password = DigestUtils.sha1Hex(password);
 	}
 
-	// hashCode and equals (by id)
+	// hashCode y equals (por id)
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);

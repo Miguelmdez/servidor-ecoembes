@@ -2,20 +2,21 @@ package es.deusto.sd.ecoembes.entity;
 
 import java.util.Objects;
 
+// Entidad de dominio: planta de reciclaje. Añadir una planta nueva solo requiere datos, no código.
 public class RecyclingPlant {
 	private String id;
 	private String name;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public RecyclingPlant() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public RecyclingPlant(String id, String name) {
 		this.id = id;
 		this.name = name;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getId() {
 		return id;
 	}
@@ -32,7 +33,7 @@ public class RecyclingPlant {
 		this.name = name;
 	}
 
-	// hashCode and equals (by id)
+	// hashCode y equals (por id)
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);

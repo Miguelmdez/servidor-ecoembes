@@ -25,9 +25,12 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+// Patrón Façade: este @RestController es la única puerta de entrada HTTP de las asignaciones de contenedores a plantas. Solo se ocupa de la capa
+// web (rutas, códigos HTTP y conversión entidad <-> DTO); la lógica de negocio está en AssignmentService.
+// El service lanza RuntimeException con un mensaje constante y el controller lo traduce a un código HTTP.
 @RestController
 @RequestMapping("/assignments")
-@Tag(name = "Assignment Controller", description = "Operations to assign containers to recycling plants")
+@Tag(name = "Controlador de asignaciones", description = "Operaciones para asignar contenedores a plantas de reciclaje")
 public class AssignmentController {
 
 	private final AssignmentService assignmentService;
@@ -36,21 +39,21 @@ public class AssignmentController {
 		this.assignmentService = assignmentService;
 	}
 
-	// Assign containers to a plant
+	// Asignar contenedores a una planta
 	@Operation(
-		summary = "Assign containers to a plant",
-		description = "Assigns one or more containers to a recycling plant for a date, if the plant has enough remaining capacity. The token of the employee goes in the userToken field of the body.",
+		summary = "Asignar contenedores a una planta",
+		description = "Asigna uno o varios contenedores a una planta de reciclaje para una fecha, si la planta tiene capacidad disponible. El token del empleado va en el campo userToken del cuerpo.",
 		responses = {
-			@ApiResponse(responseCode = "201", description = "Created: Assignment created successfully"),
-			@ApiResponse(responseCode = "400", description = "Bad Request: Invalid input data"),
-			@ApiResponse(responseCode = "401", description = "Unauthorized: User not authenticated"),
-			@ApiResponse(responseCode = "404", description = "Not Found: Plant or any of the containers not found"),
-			@ApiResponse(responseCode = "409", description = "Conflict: The remaining capacity of the plant is not enough, or a container is already assigned that day"),
+			@ApiResponse(responseCode = "201", description = "Creado: asignación realizada correctamente"),
+			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: datos de entrada no válidos"),
+			@ApiResponse(responseCode = "401", description = "No autorizado: usuario no autenticado"),
+			@ApiResponse(responseCode = "404", description = "No encontrado: no existe la planta o alguno de los contenedores"),
+			@ApiResponse(responseCode = "409", description = "Conflicto: la capacidad disponible de la planta no basta, o un contenedor ya está asignado ese día"),
 		}
 	)
 	@PostMapping
 	public ResponseEntity<AssignmentDTO> createAssignment(
-			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Assignment data", required = true)
+			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Datos de la asignación", required = true)
 			@RequestBody(required = false) AssignmentRequestDTO request) {
 		if (request == null) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -74,21 +77,21 @@ public class AssignmentController {
 		}
 	}
 
-	// Assignments of a plant for a date
+	// Asignaciones de una planta en una fecha
 	@Operation(
-		summary = "Get the assignments of a plant",
-		description = "Returns the assignments made to a plant for a date.",
+		summary = "Consultar las asignaciones de una planta",
+		description = "Devuelve las asignaciones realizadas a una planta en una fecha.",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "OK: Assignments returned successfully"),
-			@ApiResponse(responseCode = "400", description = "Bad Request: Invalid parameters"),
-			@ApiResponse(responseCode = "404", description = "Not Found: No assignments for those criteria"),
+			@ApiResponse(responseCode = "200", description = "OK: asignaciones devueltas correctamente"),
+			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: parámetros no válidos"),
+			@ApiResponse(responseCode = "404", description = "No encontrado: no hay asignaciones con esos criterios"),
 		}
 	)
 	@GetMapping
 	public ResponseEntity<List<AssignmentDTO>> getAssignments(
-			@Parameter(name = "date", description = "Date of the assignments (yyyy-MM-dd)", required = true, example = "2026-11-08")
+			@Parameter(name = "date", description = "Fecha de las asignaciones (yyyy-MM-dd)", required = true, example = "2026-11-08")
 			@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-			@Parameter(name = "plantId", description = "Plant identifier", required = true, example = "PLANT-1")
+			@Parameter(name = "plantId", description = "Identificador de la planta", required = true, example = "PLANT-1")
 			@RequestParam("plantId") String plantId) {
 		try {
 			List<Assignment> assignments = assignmentService.getAssignments(date, plantId);

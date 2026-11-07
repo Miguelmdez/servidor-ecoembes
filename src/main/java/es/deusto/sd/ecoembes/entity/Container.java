@@ -2,16 +2,17 @@ package es.deusto.sd.ecoembes.entity;
 
 import java.util.Objects;
 
+// Entidad de dominio: contenedor de reciclaje sensorizado.
 public class Container {
 	private String id;
 	private String location;
 	private String postalCode;
 	private float initialCapacity;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public Container() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public Container(String id, String location, String postalCode, float initialCapacity) {
 		this.id = id;
 		this.location = location;
@@ -19,7 +20,7 @@ public class Container {
 		this.initialCapacity = initialCapacity;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getId() {
 		return id;
 	}
@@ -52,7 +53,7 @@ public class Container {
 		this.initialCapacity = initialCapacity;
 	}
 
-	// hashCode and equals (by id)
+	// hashCode y equals (por id)
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);

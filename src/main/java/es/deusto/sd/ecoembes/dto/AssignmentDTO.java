@@ -3,6 +3,7 @@ package es.deusto.sd.ecoembes.dto;
 import java.time.LocalDate;
 import java.util.List;
 
+// DTO: asignación de contenedores a una planta. Es la respuesta de POST /assignments y GET /assignments.
 public class AssignmentDTO {
 	private String assignmentId;
 	private String plantId;
@@ -12,10 +13,10 @@ public class AssignmentDTO {
 	private Integer estimatedPackages;
 	private String assignedBy;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public AssignmentDTO() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public AssignmentDTO(String assignmentId, String plantId, List<String> containerIds, LocalDate date, Integer totalContainers, Integer estimatedPackages, String assignedBy) {
 		this.assignmentId = assignmentId;
 		this.plantId = plantId;
@@ -26,7 +27,7 @@ public class AssignmentDTO {
 		this.assignedBy = assignedBy;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getAssignmentId() {
 		return assignmentId;
 	}

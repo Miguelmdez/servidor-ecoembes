@@ -1,19 +1,20 @@
 package es.deusto.sd.ecoembes.dto;
 
+// DTO (Data Transfer Object): credenciales de inicio de sesión. Es el cuerpo de POST /auth/login.
 public class CredentialsDTO {
 	private String email;
 	private String password;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public CredentialsDTO() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public CredentialsDTO(String email, String password) {
 		this.email = email;
 		this.password = password;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getEmail() {
 		return email;
 	}

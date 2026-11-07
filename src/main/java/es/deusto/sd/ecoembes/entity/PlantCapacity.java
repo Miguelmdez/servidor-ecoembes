@@ -3,16 +3,17 @@ package es.deusto.sd.ecoembes.entity;
 import java.time.LocalDate;
 import java.util.Objects;
 
+// Entidad de dominio: capacidad diaria (en toneladas) que comunica una planta para una fecha.
 public class PlantCapacity {
 	private long id;
 	private RecyclingPlant plant;
 	private LocalDate date;
 	private double tons;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public PlantCapacity() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public PlantCapacity(long id, RecyclingPlant plant, LocalDate date, double tons) {
 		this.id = id;
 		this.plant = plant;
@@ -20,7 +21,7 @@ public class PlantCapacity {
 		this.tons = tons;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public long getId() {
 		return id;
 	}
@@ -53,7 +54,7 @@ public class PlantCapacity {
 		this.tons = tons;
 	}
 
-	// hashCode and equals (by id)
+	// hashCode y equals (por id)
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);

@@ -4,16 +4,17 @@ import java.time.LocalDate;
 
 import es.deusto.sd.ecoembes.entity.FillLevel;
 
+// DTO: lectura diaria de un sensor. Sirve de cuerpo al recibir lecturas y de respuesta en las consultas.
 public class ContainerReadingDTO {
 	private String containerId;
 	private LocalDate date;
 	private Integer estimatedPackages;
 	private FillLevel fillLevel;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public ContainerReadingDTO() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public ContainerReadingDTO(String containerId, LocalDate date, Integer estimatedPackages, FillLevel fillLevel) {
 		this.containerId = containerId;
 		this.date = date;
@@ -21,7 +22,7 @@ public class ContainerReadingDTO {
 		this.fillLevel = fillLevel;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getContainerId() {
 		return containerId;
 	}

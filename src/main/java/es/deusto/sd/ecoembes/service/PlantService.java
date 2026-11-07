@@ -12,33 +12,37 @@ import org.springframework.stereotype.Service;
 import es.deusto.sd.ecoembes.entity.PlantCapacity;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
 
+// Patrón AppService: lógica de las plantas de reciclaje y de la capacidad diaria que comunican, con su
+// ESTADO DEL SERVIDOR en memoria (Prototipo 1). Las plantas y sus capacidades son datos: añadir una
+// planta nueva solo requiere llamar a addPlant y setCapacity, sin modificar la API ni el código.
 @Service
 public class PlantService {
 
-	// Messages used as exception text and mapped to HTTP codes by the controller
-	public static final String INVALID_DATE = "Invalid date or out of range";
-	public static final String NO_CAPACITY_FOUND = "No capacity information found";
-	public static final String PLANT_NOT_FOUND = "Plant not found";
+	// Mensajes de las excepciones; el controller los traduce a códigos HTTP en un switch
+	public static final String INVALID_DATE = "Fecha no válida o fuera de rango";
+	public static final String NO_CAPACITY_FOUND = "No hay información de capacidad";
+	public static final String PLANT_NOT_FOUND = "Planta no encontrada";
 
-	// Plants communicate their capacity up to this number of days in advance
+	// Las plantas comunican su capacidad con una antelación máxima de este número de días
 	public static final int MAX_DAYS_AHEAD = 10;
 
-	// Plants by id (thread-safe: shared across request threads)
+	// Plantas indexadas por su identificador
 	private final Map<String, RecyclingPlant> plantRepository = new ConcurrentHashMap<>();
 
-	// Daily capacity (tons) by plant id and date
+	// Capacidad diaria (en toneladas) comunicada por cada planta: id de planta -> fecha -> capacidad
 	private final Map<String, Map<LocalDate, PlantCapacity>> capacityStore = new ConcurrentHashMap<>();
 
+	// Generador de identificadores internos de las capacidades
 	private final AtomicLong capacitySequence = new AtomicLong(1);
 
-	// Adding a new plant only requires data: no code changes
+	// Añadir una planta nueva solo requiere datos: no hay que cambiar código. Si ya existe, no hace nada.
 	public void addPlant(RecyclingPlant plant) {
 		if (plant != null && plantRepository.putIfAbsent(plant.getId(), plant) == null) {
 			capacityStore.put(plant.getId(), new ConcurrentHashMap<>());
 		}
 	}
 
-	// A plant communicates its capacity (tons) for a day
+	// Una planta comunica su capacidad (en toneladas) para un día; reemplaza la anterior de ese día
 	public void setCapacity(String plantId, LocalDate date, double tons) {
 		RecyclingPlant plant = plantRepository.get(plantId);
 
@@ -53,7 +57,10 @@ public class PlantService {
 		capacityStore.get(plantId).put(date, new PlantCapacity(capacitySequence.getAndIncrement(), plant, date, tons));
 	}
 
-	// Capacity of all the plants for a date (from today up to today + 10 days)
+	// Capacidad comunicada por todas las plantas para una fecha, ordenada por identificador de planta.
+	// Fecha fuera de la ventana (hoy .. hoy+10) -> INVALID_DATE; ninguna planta con datos -> NO_CAPACITY_FOUND.
+	// Es la capacidad diaria comunicada; el controller la convierte en capacidad DISPONIBLE descontando
+	// las asignaciones (ese cálculo vive en AssignmentService para no duplicarlo).
 	public List<PlantCapacity> getPlantsCapacity(LocalDate date) {
 		if (!isInWindow(date)) {
 			throw new RuntimeException(INVALID_DATE);
@@ -78,19 +85,19 @@ public class PlantService {
 		return result;
 	}
 
-	// Plant by id, or null if it does not exist
+	// Planta por identificador, o null si no existe (lo usan otros servicios)
 	public RecyclingPlant getPlant(String plantId) {
 		return plantId == null ? null : plantRepository.get(plantId);
 	}
 
-	// Capacity (tons) of a plant for a date, or null if the plant has not communicated it
+	// Capacidad (en toneladas) de una planta para una fecha, o null si no la ha comunicado
 	public PlantCapacity getPlantCapacity(String plantId, LocalDate date) {
 		Map<LocalDate, PlantCapacity> capacities = plantId == null ? null : capacityStore.get(plantId);
 
 		return capacities == null || date == null ? null : capacities.get(date);
 	}
 
-	// True if the date is between today and today + 10 days (both included)
+	// Verdadero si la fecha está entre hoy y hoy+10 días (ambos incluidos)
 	public boolean isInWindow(LocalDate date) {
 		LocalDate today = LocalDate.now();
 

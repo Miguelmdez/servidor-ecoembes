@@ -3,6 +3,7 @@ package es.deusto.sd.ecoembes.entity;
 import java.time.LocalDate;
 import java.util.Objects;
 
+// Entidad de dominio: lectura diaria de un sensor (nivel de llenado y número estimado de envases).
 public class ContainerReading {
 	private long id;
 	private Container container;
@@ -10,10 +11,10 @@ public class ContainerReading {
 	private FillLevel fillLevel;
 	private int packages;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public ContainerReading() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public ContainerReading(long id, Container container, LocalDate date, FillLevel fillLevel, int packages) {
 		this.id = id;
 		this.container = container;
@@ -22,7 +23,7 @@ public class ContainerReading {
 		this.packages = packages;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public long getId() {
 		return id;
 	}
@@ -63,7 +64,7 @@ public class ContainerReading {
 		this.packages = packages;
 	}
 
-	// hashCode and equals (by id)
+	// hashCode y equals (por id)
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);

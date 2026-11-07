@@ -19,17 +19,20 @@ import es.deusto.sd.ecoembes.entity.Employee;
 import es.deusto.sd.ecoembes.entity.PlantCapacity;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
 
+// Patrón AppService: orquesta la asignación de contenedores a plantas. Colabora con AuthService
+// (quién es el empleado), ContainerService (envases de cada contenedor) y PlantService (capacidad de la
+// planta), y guarda el ESTADO DEL SERVIDOR de las asignaciones en memoria (Prototipo 1).
 @Service
 public class AssignmentService {
 
-	// Messages used as exception text and mapped to HTTP codes by the controller
-	public static final String INVALID_DATA = "Invalid data";
-	public static final String UNAUTHORIZED = "User not authenticated";
-	public static final String INSUFFICIENT_CAPACITY = "Insufficient plant capacity";
-	public static final String CONTAINER_ALREADY_ASSIGNED = "Container already assigned that day";
-	public static final String NO_ASSIGNMENTS_FOUND = "No assignments found";
+	// Mensajes de las excepciones; el controller los traduce a códigos HTTP en un switch
+	public static final String INVALID_DATA = "Datos no válidos";
+	public static final String UNAUTHORIZED = "Usuario no autenticado";
+	public static final String INSUFFICIENT_CAPACITY = "Capacidad de la planta insuficiente";
+	public static final String CONTAINER_ALREADY_ASSIGNED = "El contenedor ya está asignado ese día";
+	public static final String NO_ASSIGNMENTS_FOUND = "No se han encontrado asignaciones";
 
-	// Assumption: weight of one package in kg (tons = packages * KG_PER_PACKAGE / 1000)
+	// Supuesto documentado: peso de un envase en kg. Toneladas = envases * KG_PER_PACKAGE / 1000
 	public static final double KG_PER_PACKAGE = 0.03;
 
 	private static final Logger logger = LoggerFactory.getLogger(AssignmentService.class);
@@ -38,9 +41,10 @@ public class AssignmentService {
 	private final ContainerService containerService;
 	private final PlantService plantService;
 
-	// Assignments by id (thread-safe: shared across request threads)
+	// Asignaciones indexadas por su identificador interno
 	private final Map<Long, Assignment> assignmentStore = new ConcurrentHashMap<>();
 
+	// Generador de identificadores de asignación
 	private final AtomicLong assignmentSequence = new AtomicLong(1);
 
 	public AssignmentService(AuthService authService, ContainerService containerService, PlantService plantService) {
@@ -49,7 +53,11 @@ public class AssignmentService {
 		this.plantService = plantService;
 	}
 
-	// Assigns containers to a plant if it has enough remaining capacity that day
+	// Asigna contenedores a una planta si esta tiene capacidad disponible ese día.
+	// Orden de las comprobaciones: token (UNAUTHORIZED), datos (INVALID_DATA), planta y contenedores
+	// (PLANT_NOT_FOUND / CONTAINER_NOT_FOUND), contenedor ya asignado ese día y capacidad (ambos
+	// producen un conflicto). Es synchronized para que comprobar la capacidad y guardar la asignación
+	// sea una operación atómica: dos asignaciones simultáneas no pueden superar la capacidad entre las dos.
 	public synchronized Assignment createAssignment(String userToken, String plantId, List<String> containerIds,
 			LocalDate date) {
 		Employee employee = authService.getEmployeeByToken(userToken);
@@ -80,10 +88,10 @@ public class AssignmentService {
 				throw new RuntimeException(ContainerService.CONTAINER_NOT_FOUND);
 			}
 
-			// Packages of a container = its latest reading on or before the date (0 if it has none)
+			// Envases de un contenedor = los de su última lectura en la fecha o antes (0 si no tiene ninguna)
 			ContainerReading reading = containerService.getLatestReading(containerId, date);
 
-			// A container cannot be assigned more than once the same day (to any plant)
+			// Un contenedor no puede asignarse más de una vez el mismo día (a ninguna planta)
 			if (isContainerAssigned(containerId, date)) {
 				throw new RuntimeException(CONTAINER_ALREADY_ASSIGNED);
 			}
@@ -98,18 +106,20 @@ public class AssignmentService {
 			throw new RuntimeException(INSUFFICIENT_CAPACITY);
 		}
 
+		// assignedBy guarda el email del empleado del token: registro de auditoría
 		Assignment assignment = new Assignment(assignmentSequence.getAndIncrement(), plant, date, containers,
 				totalPackages, tons, employee.getEmail());
 		assignmentStore.put(assignment.getId(), assignment);
 
-		// Notification to the plant (simulated with a log)
-		logger.info("Plant {} notified: {} containers, {} packages on {}", plant.getName(), containers.size(),
+		// Notificación a la planta (en el Prototipo 1 se simula con un mensaje de log)
+		logger.info("Planta {} notificada: {} contenedores, {} envases para el {}", plant.getName(), containers.size(),
 				totalPackages, date);
 
 		return assignment;
 	}
 
-	// Assignments of a plant for a date
+	// Asignaciones de una planta en una fecha, ordenadas por identificador.
+	// Parámetros ausentes -> INVALID_DATA; sin asignaciones (o planta sin ellas) -> NO_ASSIGNMENTS_FOUND.
 	public List<Assignment> getAssignments(LocalDate date, String plantId) {
 		if (date == null || plantId == null || plantId.isBlank()) {
 			throw new RuntimeException(INVALID_DATA);
@@ -132,14 +142,16 @@ public class AssignmentService {
 		return result;
 	}
 
-	// Available capacity (tons) = capacity of the day - tons already assigned to the plant that day (min 0)
+	// Capacidad disponible (en toneladas) = capacidad del día - toneladas ya asignadas a la planta ese día
+	// (mínimo 0). Es el único sitio donde se calcula: lo usan tanto el 409 de createAssignment como la
+	// consulta de capacidad de las plantas, para que ambas den siempre el mismo resultado.
 	public double getAvailableTons(String plantId, LocalDate date) {
 		PlantCapacity capacity = plantService.getPlantCapacity(plantId, date);
 
 		return capacity == null ? 0 : Math.max(0, capacity.getTons() - getAssignedTons(plantId, date));
 	}
 
-	// True if the container is already in an assignment of that day (any plant)
+	// Verdadero si el contenedor ya está en alguna asignación de ese día (de cualquier planta)
 	private boolean isContainerAssigned(String containerId, LocalDate date) {
 		for (Assignment assignment : assignmentStore.values()) {
 			if (assignment.getDate().equals(date)) {
@@ -154,7 +166,7 @@ public class AssignmentService {
 		return false;
 	}
 
-	// Tons already assigned to a plant for a date
+	// Toneladas ya asignadas a una planta en una fecha
 	private double getAssignedTons(String plantId, LocalDate date) {
 		double total = 0;
 
@@ -167,6 +179,7 @@ public class AssignmentService {
 		return total;
 	}
 
+	// Conversión de envases a toneladas según el supuesto KG_PER_PACKAGE
 	private double toTons(int packages) {
 		return packages * KG_PER_PACKAGE / 1000;
 	}

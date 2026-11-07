@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+// Entidad de dominio: asignación de contenedores a una planta; guarda quién la hizo (auditoría).
 public class Assignment {
 	private long id;
 	private RecyclingPlant plant;
@@ -14,10 +15,10 @@ public class Assignment {
 	private double tons;
 	private String assignedBy;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public Assignment() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public Assignment(long id, RecyclingPlant plant, LocalDate date, List<Container> containers, int totalPackages, double tons, String assignedBy) {
 		this.id = id;
 		this.plant = plant;
@@ -28,7 +29,7 @@ public class Assignment {
 		this.assignedBy = assignedBy;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public long getId() {
 		return id;
 	}
@@ -85,7 +86,7 @@ public class Assignment {
 		this.assignedBy = assignedBy;
 	}
 
-	// hashCode and equals (by id)
+	// hashCode y equals (por id)
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);

@@ -1,15 +1,16 @@
 package es.deusto.sd.ecoembes.dto;
 
+// DTO: datos básicos de un contenedor. Es el cuerpo de POST /containers. initialCapacity se expresa en número de envases.
 public class ContainerDTO {
 	private String containerId;
 	private String location;
 	private String postalCode;
 	private Float initialCapacity;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public ContainerDTO() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public ContainerDTO(String containerId, String location, String postalCode, Float initialCapacity) {
 		this.containerId = containerId;
 		this.location = location;
@@ -17,7 +18,7 @@ public class ContainerDTO {
 		this.initialCapacity = initialCapacity;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getContainerId() {
 		return containerId;
 	}

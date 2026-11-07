@@ -1,19 +1,20 @@
 package es.deusto.sd.ecoembes.dto;
 
+// DTO: respuesta de un inicio de sesión correcto (token de sesión y su marca de tiempo).
 public class LoginResponseDTO {
 	private String token;
 	private Long timestamp;
 
-	// Constructor without parameters
+	// Constructor sin parámetros
 	public LoginResponseDTO() { }
 
-	// Constructor with parameters
+	// Constructor con parámetros
 	public LoginResponseDTO(String token, Long timestamp) {
 		this.token = token;
 		this.timestamp = timestamp;
 	}
 
-	// Getters and setters
+	// Getters y setters
 	public String getToken() {
 		return token;
 	}

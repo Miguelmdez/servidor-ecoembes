@@ -19,9 +19,12 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+// Patrón Façade: este @RestController es la única puerta de entrada HTTP de la autenticación. Solo se ocupa de la capa
+// web (rutas, códigos HTTP y conversión entidad <-> DTO); la lógica de negocio está en AuthService.
+// El service lanza RuntimeException con un mensaje constante y el controller lo traduce a un código HTTP.
 @RestController
 @RequestMapping("/auth")
-@Tag(name = "Authorization Controller", description = "Login and logout operations")
+@Tag(name = "Controlador de autenticación", description = "Operaciones de inicio y cierre de sesión")
 public class AuthController {
 
 	private final AuthService authService;
@@ -30,19 +33,19 @@ public class AuthController {
 		this.authService = authService;
 	}
 
-	// Login endpoint
+	// Inicio de sesión
 	@Operation(
-		summary = "Login to the system",
-		description = "Allows an Ecoembes employee to login by providing email and password. Returns a token and a timestamp if successful.",
+		summary = "Iniciar sesión",
+		description = "Permite a un empleado de Ecoembes iniciar sesión con su email y contraseña. Si son correctos, devuelve el token de sesión y su marca de tiempo.",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "OK: Login successful, returns token and timestamp"),
-			@ApiResponse(responseCode = "400", description = "Bad Request: Email or password missing"),
-			@ApiResponse(responseCode = "401", description = "Unauthorized: Invalid credentials, login failed"),
+			@ApiResponse(responseCode = "200", description = "OK: inicio de sesión correcto; devuelve token y marca de tiempo"),
+			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: falta el email o la contraseña"),
+			@ApiResponse(responseCode = "401", description = "No autorizado: credenciales incorrectas"),
 		}
 	)
 	@PostMapping("/login")
 	public ResponseEntity<LoginResponseDTO> login(
-			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Employee credentials", required = true)
+			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Credenciales del empleado", required = true)
 			@RequestBody(required = false) CredentialsDTO credentials) {
 		if (credentials == null || isBlank(credentials.getEmail()) || isBlank(credentials.getPassword())) {
 			return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -57,22 +60,22 @@ public class AuthController {
 		}
 	}
 
-	// Logout endpoint
+	// Cierre de sesión
 	@Operation(
-		summary = "Logout from the system",
-		description = "Allows an employee to logout by providing the session token in the request body.",
+		summary = "Cerrar sesión",
+		description = "Permite a un empleado cerrar su sesión enviando el token de sesión en el cuerpo de la petición (texto plano o JSON).",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "OK: Logout successful"),
-			@ApiResponse(responseCode = "400", description = "Bad Request: Token missing"),
-			@ApiResponse(responseCode = "401", description = "Unauthorized: Invalid token, logout failed"),
+			@ApiResponse(responseCode = "200", description = "OK: sesión cerrada correctamente"),
+			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: falta el token"),
+			@ApiResponse(responseCode = "401", description = "No autorizado: token no válido o sesión no activa"),
 		}
 	)
 	@PostMapping(value = "/logout", consumes = { MediaType.TEXT_PLAIN_VALUE, MediaType.APPLICATION_JSON_VALUE })
 	public ResponseEntity<Void> logout(
-			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Session token in plain text", required = true,
+			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Token de sesión en texto plano", required = true,
 					content = @Content(mediaType = "text/plain", examples = @ExampleObject(value = "1794045820666")))
 			@RequestBody(required = false) String token) {
-		// Remove surrounding quotes (e.g. token sent as a JSON string)
+		// Quita las comillas que rodean al token (por ejemplo, si llega como cadena JSON desde Swagger)
 		String cleanToken = token == null ? null : token.trim().replaceAll("^\"+|\"+$", "");
 
 		if (isBlank(cleanToken)) {

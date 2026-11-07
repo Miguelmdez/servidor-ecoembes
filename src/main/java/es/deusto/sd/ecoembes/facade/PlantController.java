@@ -20,9 +20,12 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+// Patrón Façade: este @RestController es la única puerta de entrada HTTP de las plantas de reciclaje. Solo se ocupa de la capa
+// web (rutas, códigos HTTP y conversión entidad <-> DTO); la lógica de negocio está en PlantService (y AssignmentService para la capacidad disponible).
+// El service lanza RuntimeException con un mensaje constante y el controller lo traduce a un código HTTP.
 @RestController
 @RequestMapping("/plants")
-@Tag(name = "Plant Controller", description = "Operations to query the capacity of the recycling plants")
+@Tag(name = "Controlador de plantas", description = "Operaciones para consultar la capacidad de las plantas de reciclaje")
 public class PlantController {
 
 	private final PlantService plantService;
@@ -33,19 +36,19 @@ public class PlantController {
 		this.assignmentService = assignmentService;
 	}
 
-	// Capacity of all the plants for a date
+	// Capacidad disponible de todas las plantas en una fecha
 	@Operation(
-		summary = "Get the capacity of the plants for a date",
-		description = "Returns the available capacity (in tons, daily capacity minus the tons already assigned) of all the recycling plants for a date between today and today + 10 days.",
+		summary = "Consultar la capacidad disponible de las plantas en una fecha",
+		description = "Devuelve la capacidad disponible (en toneladas: capacidad diaria comunicada menos lo ya asignado) de todas las plantas de reciclaje para una fecha entre hoy y hoy+10 días.",
 		responses = {
-			@ApiResponse(responseCode = "200", description = "OK: Capacities returned successfully"),
-			@ApiResponse(responseCode = "400", description = "Bad Request: Invalid date or out of range"),
-			@ApiResponse(responseCode = "404", description = "Not Found: No capacity information for that date"),
+			@ApiResponse(responseCode = "200", description = "OK: capacidades devueltas correctamente"),
+			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: fecha no válida o fuera de rango"),
+			@ApiResponse(responseCode = "404", description = "No encontrado: no hay información de capacidad para esa fecha"),
 		}
 	)
 	@GetMapping("/capacity/date/{date}")
 	public ResponseEntity<List<PlantCapacityDTO>> getPlantsCapacity(
-			@Parameter(name = "date", description = "Date of the query (yyyy-MM-dd)", required = true, example = "2026-11-08")
+			@Parameter(name = "date", description = "Fecha de la consulta (yyyy-MM-dd)", required = true, example = "2026-11-08")
 			@PathVariable("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
 		try {
 			List<PlantCapacity> capacities = plantService.getPlantsCapacity(date);
