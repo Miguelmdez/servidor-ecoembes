@@ -3,29 +3,37 @@ package es.deusto.sd.ecoembes.entity;
 import java.util.Objects;
 
 public class Container {
-	private long id;
+	private String id;
+	private String location;
 	private String postalCode;
-	private String address;
-	private int capacity;
+	private float initialCapacity;
 
 	// Constructor without parameters
 	public Container() { }
 
 	// Constructor with parameters
-	public Container(long id, String postalCode, String address, int capacity) {
+	public Container(String id, String location, String postalCode, float initialCapacity) {
 		this.id = id;
+		this.location = location;
 		this.postalCode = postalCode;
-		this.address = address;
-		this.capacity = capacity;
+		this.initialCapacity = initialCapacity;
 	}
 
 	// Getters and setters
-	public long getId() {
+	public String getId() {
 		return id;
 	}
 
-	public void setId(long id) {
+	public void setId(String id) {
 		this.id = id;
+	}
+
+	public String getLocation() {
+		return location;
+	}
+
+	public void setLocation(String location) {
+		this.location = location;
 	}
 
 	public String getPostalCode() {
@@ -36,20 +44,12 @@ public class Container {
 		this.postalCode = postalCode;
 	}
 
-	public String getAddress() {
-		return address;
+	public float getInitialCapacity() {
+		return initialCapacity;
 	}
 
-	public void setAddress(String address) {
-		this.address = address;
-	}
-
-	public int getCapacity() {
-		return capacity;
-	}
-
-	public void setCapacity(int capacity) {
-		this.capacity = capacity;
+	public void setInitialCapacity(float initialCapacity) {
+		this.initialCapacity = initialCapacity;
 	}
 
 	// hashCode and equals (by id)
@@ -67,6 +67,6 @@ public class Container {
 		if (getClass() != obj.getClass())
 			return false;
 		Container other = (Container) obj;
-		return id == other.id;
+		return Objects.equals(id, other.id);
 	}
 }

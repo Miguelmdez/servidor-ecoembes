@@ -204,3 +204,16 @@ c) **POST /assignments**: el body es `AssignmentRequestDTO {plantId, containerId
 d) Los endpoints cuya especificación no incluye 401 no piden token.
 e) **Toneladas** = sumaEnvases * `KG_PER_PACKAGE` (0.03) / 1000.
 f) **Fechas** como `LocalDate` ISO (`yyyy-MM-dd`); `fillLevel` como enum `FillLevel` (`"GREEN"`/`"ORANGE"`/`"RED"`).
+g) `initialCapacity` se expresa en número de envases.
+h) `POST /containers/{containerId}/readings`: si el `containerId` del body no coincide con el de la ruta, se devuelve 400.
+i) **Rangos del simulador** (envases generados como % de `initialCapacity`):
+
+| fillLevel | Rango |
+|---|---|
+| GREEN | [0 %, 40 %) |
+| ORANGE | [40 %, 80 %) |
+| RED | [80 %, 100 %] |
+
+Los tres rangos son contiguos (cada uno empieza donde acaba el anterior) y cubren del 0 al 100 % sin huecos. El número de envases se obtiene truncando a entero.
+
+j) En Swagger UI el token se introduce con el botón **Authorize** (esquema `tokenAuth`, cabecera `Authorization`), porque Swagger UI no envía parámetros de cabecera llamados `Authorization`. Los endpoints que leen esa cabecera (`POST /containers`) llevan `@SecurityRequirement(name = "tokenAuth")`.

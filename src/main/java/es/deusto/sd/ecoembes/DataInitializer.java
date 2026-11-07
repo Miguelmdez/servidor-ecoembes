@@ -1,5 +1,6 @@
 package es.deusto.sd.ecoembes;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -8,10 +9,10 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import es.deusto.sd.ecoembes.entity.Container;
 import es.deusto.sd.ecoembes.entity.Employee;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
 import es.deusto.sd.ecoembes.service.AuthService;
+import es.deusto.sd.ecoembes.service.ContainerService;
 
 @Configuration
 public class DataInitializer {
@@ -19,7 +20,8 @@ public class DataInitializer {
 	private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
 
 	@Bean
-	CommandLineRunner initData(AuthService authService) {
+	CommandLineRunner initData(AuthService authService, ContainerService containerService,
+			SensorSimulator sensorSimulator) {
 		return args -> {
 			// Create some Ecoembes employees
 			Employee ana = new Employee(1, "Ana Garcia", "ana.garcia@ecoembes.com", "Ana#2026");
@@ -37,16 +39,21 @@ public class DataInitializer {
 				new RecyclingPlant(2, "ContSocket Ltd."));
 
 			// Create 6 containers in 2 postal codes
-			List<Container> containers = List.of(
-				new Container(1, "48001", "Gran Via 10, Bilbao", 1000),
-				new Container(2, "48001", "Calle Colon de Larreategui 5, Bilbao", 1000),
-				new Container(3, "48001", "Plaza Moyua 1, Bilbao", 1500),
-				new Container(4, "01001", "Calle Dato 20, Vitoria-Gasteiz", 1000),
-				new Container(5, "01001", "Paseo de la Senda 8, Vitoria-Gasteiz", 1200),
-				new Container(6, "01001", "Calle Postas 3, Vitoria-Gasteiz", 1500));
+			containerService.createContainer("CONT-001", "Gran Via 10, Bilbao", "48001", 1000f);
+			containerService.createContainer("CONT-002", "Calle Colon de Larreategui 5, Bilbao", "48001", 1000f);
+			containerService.createContainer("CONT-003", "Plaza Moyua 1, Bilbao", "48001", 1500f);
+			containerService.createContainer("CONT-004", "Calle Dato 20, Vitoria-Gasteiz", "01001", 1000f);
+			containerService.createContainer("CONT-005", "Paseo de la Senda 8, Vitoria-Gasteiz", "01001", 1200f);
+			containerService.createContainer("CONT-006", "Calle Postas 3, Vitoria-Gasteiz", "01001", 1500f);
 
-			// There is no plant/container service yet: they will be stored there in the next tasks
-			logger.info("{} plants and {} containers created (not stored yet)!", plants.size(), containers.size());
+			// Readings of the last 7 days (today included)
+			for (int i = 6; i >= 0; i--) {
+				sensorSimulator.simulateDay(LocalDate.now().minusDays(i));
+			}
+
+			// There is no plant service yet: plants will be stored there in the next tasks
+			logger.info("{} plants created (not stored yet), {} containers with 7 days of readings stored!",
+					plants.size(), containerService.getContainers().size());
 		};
 	}
 }
