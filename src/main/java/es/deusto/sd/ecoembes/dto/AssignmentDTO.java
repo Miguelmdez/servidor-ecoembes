@@ -1,47 +1,54 @@
 package es.deusto.sd.ecoembes.dto;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 
 public class AssignmentDTO {
-	private long id;
-	private long plantId;
+	private String assignmentId;
+	private String plantId;
+	private List<String> containerIds;
 	private LocalDate date;
-	private List<Long> containerIds;
-	private int totalPackages;
-	private double tons;
+	private Integer totalContainers;
+	private Integer estimatedPackages;
 	private String assignedBy;
 
 	// Constructor without parameters
 	public AssignmentDTO() { }
 
 	// Constructor with parameters
-	public AssignmentDTO(long id, long plantId, LocalDate date, List<Long> containerIds, int totalPackages, double tons, String assignedBy) {
-		this.id = id;
+	public AssignmentDTO(String assignmentId, String plantId, List<String> containerIds, LocalDate date, Integer totalContainers, Integer estimatedPackages, String assignedBy) {
+		this.assignmentId = assignmentId;
 		this.plantId = plantId;
-		this.date = date;
 		this.containerIds = containerIds;
-		this.totalPackages = totalPackages;
-		this.tons = tons;
+		this.date = date;
+		this.totalContainers = totalContainers;
+		this.estimatedPackages = estimatedPackages;
 		this.assignedBy = assignedBy;
 	}
 
 	// Getters and setters
-	public long getId() {
-		return id;
+	public String getAssignmentId() {
+		return assignmentId;
 	}
 
-	public void setId(long id) {
-		this.id = id;
+	public void setAssignmentId(String assignmentId) {
+		this.assignmentId = assignmentId;
 	}
 
-	public long getPlantId() {
+	public String getPlantId() {
 		return plantId;
 	}
 
-	public void setPlantId(long plantId) {
+	public void setPlantId(String plantId) {
 		this.plantId = plantId;
+	}
+
+	public List<String> getContainerIds() {
+		return containerIds;
+	}
+
+	public void setContainerIds(List<String> containerIds) {
+		this.containerIds = containerIds;
 	}
 
 	public LocalDate getDate() {
@@ -52,28 +59,20 @@ public class AssignmentDTO {
 		this.date = date;
 	}
 
-	public List<Long> getContainerIds() {
-		return containerIds;
+	public Integer getTotalContainers() {
+		return totalContainers;
 	}
 
-	public void setContainerIds(List<Long> containerIds) {
-		this.containerIds = containerIds;
+	public void setTotalContainers(Integer totalContainers) {
+		this.totalContainers = totalContainers;
 	}
 
-	public int getTotalPackages() {
-		return totalPackages;
+	public Integer getEstimatedPackages() {
+		return estimatedPackages;
 	}
 
-	public void setTotalPackages(int totalPackages) {
-		this.totalPackages = totalPackages;
-	}
-
-	public double getTons() {
-		return tons;
-	}
-
-	public void setTons(double tons) {
-		this.tons = tons;
+	public void setEstimatedPackages(Integer estimatedPackages) {
+		this.estimatedPackages = estimatedPackages;
 	}
 
 	public String getAssignedBy() {

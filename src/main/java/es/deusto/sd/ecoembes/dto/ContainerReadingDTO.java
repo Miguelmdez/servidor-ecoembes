@@ -2,29 +2,31 @@ package es.deusto.sd.ecoembes.dto;
 
 import java.time.LocalDate;
 
+import es.deusto.sd.ecoembes.entity.FillLevel;
+
 public class ContainerReadingDTO {
-	private long containerId;
+	private String containerId;
 	private LocalDate date;
-	private String fillLevel;
-	private int packages;
+	private Integer estimatedPackages;
+	private FillLevel fillLevel;
 
 	// Constructor without parameters
 	public ContainerReadingDTO() { }
 
 	// Constructor with parameters
-	public ContainerReadingDTO(long containerId, LocalDate date, String fillLevel, int packages) {
+	public ContainerReadingDTO(String containerId, LocalDate date, Integer estimatedPackages, FillLevel fillLevel) {
 		this.containerId = containerId;
 		this.date = date;
+		this.estimatedPackages = estimatedPackages;
 		this.fillLevel = fillLevel;
-		this.packages = packages;
 	}
 
 	// Getters and setters
-	public long getContainerId() {
+	public String getContainerId() {
 		return containerId;
 	}
 
-	public void setContainerId(long containerId) {
+	public void setContainerId(String containerId) {
 		this.containerId = containerId;
 	}
 
@@ -36,19 +38,19 @@ public class ContainerReadingDTO {
 		this.date = date;
 	}
 
-	public String getFillLevel() {
+	public Integer getEstimatedPackages() {
+		return estimatedPackages;
+	}
+
+	public void setEstimatedPackages(Integer estimatedPackages) {
+		this.estimatedPackages = estimatedPackages;
+	}
+
+	public FillLevel getFillLevel() {
 		return fillLevel;
 	}
 
-	public void setFillLevel(String fillLevel) {
+	public void setFillLevel(FillLevel fillLevel) {
 		this.fillLevel = fillLevel;
-	}
-
-	public int getPackages() {
-		return packages;
-	}
-
-	public void setPackages(int packages) {
-		this.packages = packages;
 	}
 }
