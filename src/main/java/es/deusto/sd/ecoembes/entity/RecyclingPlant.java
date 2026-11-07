@@ -3,24 +3,24 @@ package es.deusto.sd.ecoembes.entity;
 import java.util.Objects;
 
 public class RecyclingPlant {
-	private long id;
+	private String id;
 	private String name;
 
 	// Constructor without parameters
 	public RecyclingPlant() { }
 
 	// Constructor with parameters
-	public RecyclingPlant(long id, String name) {
+	public RecyclingPlant(String id, String name) {
 		this.id = id;
 		this.name = name;
 	}
 
 	// Getters and setters
-	public long getId() {
+	public String getId() {
 		return id;
 	}
 
-	public void setId(long id) {
+	public void setId(String id) {
 		this.id = id;
 	}
 
@@ -47,6 +47,6 @@ public class RecyclingPlant {
 		if (getClass() != obj.getClass())
 			return false;
 		RecyclingPlant other = (RecyclingPlant) obj;
-		return id == other.id;
+		return Objects.equals(id, other.id);
 	}
 }

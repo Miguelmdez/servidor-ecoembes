@@ -13,6 +13,7 @@ import es.deusto.sd.ecoembes.entity.Employee;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
 import es.deusto.sd.ecoembes.service.AuthService;
 import es.deusto.sd.ecoembes.service.ContainerService;
+import es.deusto.sd.ecoembes.service.PlantService;
 
 @Configuration
 public class DataInitializer {
@@ -21,7 +22,7 @@ public class DataInitializer {
 
 	@Bean
 	CommandLineRunner initData(AuthService authService, ContainerService containerService,
-			SensorSimulator sensorSimulator) {
+			PlantService plantService, SensorSimulator sensorSimulator) {
 		return args -> {
 			// Create some Ecoembes employees
 			Employee ana = new Employee(1, "Ana Garcia", "ana.garcia@ecoembes.com", "Ana#2026");
@@ -33,10 +34,22 @@ public class DataInitializer {
 			authService.addEmployee(marta);
 			logger.info("Employees saved!");
 
-			// Create the recycling plants
+			// Create the recycling plants (a new plant only requires adding data here)
 			List<RecyclingPlant> plants = List.of(
-				new RecyclingPlant(1, "PlasSB Ltd."),
-				new RecyclingPlant(2, "ContSocket Ltd."));
+				new RecyclingPlant("PLANT-1", "PlasSB Ltd."),
+				new RecyclingPlant("PLANT-2", "ContSocket Ltd."));
+
+			for (RecyclingPlant plant : plants) {
+				plantService.addPlant(plant);
+			}
+
+			// Daily capacity in tons from today to today + 10 days (day 3 is very low to provoke a 409)
+			for (int i = 0; i <= PlantService.MAX_DAYS_AHEAD; i++) {
+				LocalDate day = LocalDate.now().plusDays(i);
+
+				plantService.setCapacity("PLANT-1", day, i == 3 ? 0.02 : 6.0 + (i % 3) * 0.5);
+				plantService.setCapacity("PLANT-2", day, i == 3 ? 0.03 : 4.0 + (i % 4) * 0.5);
+			}
 
 			// Create 6 containers in 2 postal codes
 			containerService.createContainer("CONT-001", "Gran Via 10, Bilbao", "48001", 1000f);
@@ -51,9 +64,8 @@ public class DataInitializer {
 				sensorSimulator.simulateDay(LocalDate.now().minusDays(i));
 			}
 
-			// There is no plant service yet: plants will be stored there in the next tasks
-			logger.info("{} plants created (not stored yet), {} containers with 7 days of readings stored!",
-					plants.size(), containerService.getContainers().size());
+			logger.info("{} plants with capacity for the next {} days and {} containers with 7 days of readings stored!",
+					plants.size(), PlantService.MAX_DAYS_AHEAD, containerService.getContainers().size());
 		};
 	}
 }

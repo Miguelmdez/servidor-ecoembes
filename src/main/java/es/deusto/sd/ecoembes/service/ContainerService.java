@@ -115,6 +115,24 @@ public class ContainerService {
 		return result;
 	}
 
+	// Container by id, or null if it does not exist
+	public Container getContainer(String containerId) {
+		return containerId == null ? null : containerRepository.get(containerId);
+	}
+
+	// Latest reading of a container on or before a date, or null if there is none
+	public ContainerReading getLatestReading(String containerId, LocalDate date) {
+		NavigableMap<LocalDate, ContainerReading> readings = containerId == null ? null : readingStore.get(containerId);
+
+		if (readings == null || date == null) {
+			return null;
+		}
+
+		Map.Entry<LocalDate, ContainerReading> entry = readings.floorEntry(date);
+
+		return entry == null ? null : entry.getValue();
+	}
+
 	// All the containers (used by the sensor simulator)
 	public Collection<Container> getContainers() {
 		return containerRepository.values();

@@ -144,7 +144,7 @@ public class ContainerController {
 		}
 	)
 	@GetMapping("/readings")
-	public ResponseEntity<List<ContainerReadingDTO>> getZoneStatus(
+	public ResponseEntity<List<ContainerReadingDTO>> getZoneReadings(
 			@Parameter(name = "postalCode", description = "Postal code of the zone", required = true, example = "48001")
 			@RequestParam("postalCode") String postalCode,
 			@Parameter(name = "date", description = "Date of the query (yyyy-MM-dd)", required = true, example = "2026-11-07")
