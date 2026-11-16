@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Service;
 
@@ -38,9 +37,6 @@ public class ContainerService {
 	// lectura por contenedor y día: una lectura nueva del mismo día reemplaza a la anterior.
 	private final Map<String, NavigableMap<LocalDate, ContainerReading>> readingStore = new ConcurrentHashMap<>();
 
-	// Generador de identificadores internos de las lecturas
-	private final AtomicLong readingSequence = new AtomicLong(1);
-
 	// Crea un contenedor nuevo. Datos incorrectos -> INVALID_DATA; identificador repetido -> CONTAINER_ALREADY_EXISTS.
 	public Container createContainer(String containerId, String location, String postalCode, Float initialCapacity) {
 		if (isBlank(containerId) || isBlank(location) || isBlank(postalCode)
@@ -60,6 +56,30 @@ public class ContainerService {
 		return container;
 	}
 
+	// Actualiza ubicación, código postal y capacidad inicial de un contenedor existente (el identificador no cambia).
+	// Datos incorrectos -> INVALID_DATA; contenedor desconocido -> CONTAINER_NOT_FOUND.
+	public Container updateContainer(String containerId, String location, String postalCode, Float initialCapacity) {
+		if (isBlank(containerId) || isBlank(location) || isBlank(postalCode)
+				|| initialCapacity == null || initialCapacity <= 0) {
+			throw new RuntimeException(INVALID_DATA);
+		}
+
+		Container container = containerRepository.get(containerId);
+
+		if (container == null) {
+			throw new RuntimeException(CONTAINER_NOT_FOUND);
+		}
+
+		// El contenedor es compartido por todos los hilos: se actualiza de forma atómica respecto a otras actualizaciones
+		synchronized (container) {
+			container.setLocation(location);
+			container.setPostalCode(postalCode);
+			container.setInitialCapacity(initialCapacity);
+		}
+
+		return container;
+	}
+
 	// Guarda una lectura del sensor; si ya había una de ese día, la reemplaza.
 	// Datos incorrectos -> INVALID_DATA; contenedor desconocido -> CONTAINER_NOT_FOUND.
 	public ContainerReading addReading(String containerId, LocalDate date, Integer estimatedPackages, FillLevel fillLevel) {
@@ -75,8 +95,7 @@ public class ContainerService {
 			throw new RuntimeException(CONTAINER_NOT_FOUND);
 		}
 
-		ContainerReading reading = new ContainerReading(readingSequence.getAndIncrement(), container, date, fillLevel,
-				estimatedPackages);
+		ContainerReading reading = new ContainerReading(container, date, fillLevel, estimatedPackages);
 		readings.put(date, reading);
 
 		return reading;

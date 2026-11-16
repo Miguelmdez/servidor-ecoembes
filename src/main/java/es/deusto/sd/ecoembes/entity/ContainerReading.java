@@ -4,8 +4,8 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 // Entidad de dominio: lectura diaria de un sensor (nivel de llenado y número estimado de envases).
+// No tiene identificador propio: una lectura se identifica por su contenedor y su fecha (solo hay una por contenedor y día).
 public class ContainerReading {
-	private long id;
 	private Container container;
 	private LocalDate date;
 	private FillLevel fillLevel;
@@ -15,8 +15,7 @@ public class ContainerReading {
 	public ContainerReading() { }
 
 	// Constructor con parámetros
-	public ContainerReading(long id, Container container, LocalDate date, FillLevel fillLevel, int packages) {
-		this.id = id;
+	public ContainerReading(Container container, LocalDate date, FillLevel fillLevel, int packages) {
 		this.container = container;
 		this.date = date;
 		this.fillLevel = fillLevel;
@@ -24,14 +23,6 @@ public class ContainerReading {
 	}
 
 	// Getters y setters
-	public long getId() {
-		return id;
-	}
-
-	public void setId(long id) {
-		this.id = id;
-	}
-
 	public Container getContainer() {
 		return container;
 	}
@@ -64,10 +55,10 @@ public class ContainerReading {
 		this.packages = packages;
 	}
 
-	// hashCode y equals (por id)
+	// hashCode y equals (por contenedor y fecha)
 	@Override
 	public int hashCode() {
-		return Objects.hash(id);
+		return Objects.hash(container, date);
 	}
 
 	@Override
@@ -79,6 +70,6 @@ public class ContainerReading {
 		if (getClass() != obj.getClass())
 			return false;
 		ContainerReading other = (ContainerReading) obj;
-		return id == other.id;
+		return Objects.equals(container, other.container) && Objects.equals(date, other.date);
 	}
 }

@@ -99,6 +99,20 @@ La API requiere autenticación mediante correo electrónico y contraseña. Cuand
   - 400 Bad Request: Parámetros incorrectos.
   - 404 Not Found: No se encuentran contenedores para esa zona y fecha.
 
+#### 3.2.5. Actualizar un contenedor
+- Método: PUT
+- Endpoint: /containers/{containerId}
+- Descripción: Permite al personal de Ecoembes actualizar la ubicación, el código postal y la capacidad inicial de un contenedor ya registrado. El identificador no se puede modificar.
+- Parámetros de entrada:
+  - token: token de la sesión activa (parámetro de la petición).
+  - containerId: identificador del contenedor (ruta).
+  - Cuerpo (ContainerDTO): location, postalCode e initialCapacity; si se incluye containerId, debe coincidir con el de la ruta.
+- Respuestas HTTP:
+  - 200 OK: Contenedor actualizado. Devuelve el ContainerDTO actualizado.
+  - 400 Bad Request: Datos incorrectos, o el containerId del cuerpo no coincide con el de la ruta.
+  - 401 Unauthorized: Token ausente o no válido.
+  - 404 Not Found: No existe el contenedor.
+
 ### 3.3. Consulta de plantas de reciclaje
 
 #### 3.3.1. Consultar la capacidad disponible de las plantas
@@ -199,7 +213,7 @@ Representa una asignación de contenedores a una planta de reciclaje.
 
 ## 6. Decisiones de diseño
 a) **Base URL**: `/api/v1`, configurada con `server.servlet.context-path=/api/v1` (puerto 8081).
-b) **POST /containers**: el token de sesión se envía en la cabecera `Authorization`.
+b) *(sustituida por r)* ~~**POST /containers**: el token de sesión se envía en la cabecera `Authorization`.~~
 c) **POST /assignments**: el body es `AssignmentRequestDTO {plantId, containerIds, date, userToken}`.
 d) Los endpoints cuya especificación no incluye 401 no piden token.
 e) **Toneladas** = sumaEnvases * `KG_PER_PACKAGE` (0.03) / 1000.
@@ -216,7 +230,7 @@ i) **Rangos del simulador** (envases generados como % de `initialCapacity`):
 
 Los tres rangos son contiguos (cada uno empieza donde acaba el anterior) y cubren del 0 al 100 % sin huecos. El número de envases se obtiene truncando a entero.
 
-j) En Swagger UI el token se introduce con el botón **Authorize** (esquema `tokenAuth`, cabecera `Authorization`), porque Swagger UI no envía parámetros de cabecera llamados `Authorization`. Los endpoints que leen esa cabecera (`POST /containers`) llevan `@SecurityRequirement(name = "tokenAuth")`.
+j) *(sustituida por r)* ~~En Swagger UI el token se introduce con el botón **Authorize** (esquema `tokenAuth`, cabecera `Authorization`), porque Swagger UI no envía parámetros de cabecera llamados `Authorization`. Los endpoints que leen esa cabecera (`POST /containers`) llevan `@SecurityRequirement(name = "tokenAuth")`.~~
 
 k) **Identificadores**: las plantas son `PLANT-1` (PlasSB Ltd.) y `PLANT-2` (ContSocket Ltd.); los contenedores `CONT-001`..`CONT-006`; las asignaciones `ASG-n`.
 l) `GET /plants/capacity/date/{date}` devuelve la capacidad **disponible** (toneladas) de cada planta: capacidad diaria comunicada menos las toneladas ya asignadas a esa planta ese día (mínimo 0). Es el mismo cálculo que usa `POST /assignments` para el 409. Ventana válida: de hoy a hoy+10 (ambos incluidos); fuera de ella o con formato incorrecto -> 400; sin datos de capacidad para esa fecha -> 404.
@@ -225,3 +239,8 @@ n) Envases de un contenedor en una asignación = su última lectura en o antes d
 o) `GET /assignments?date&plantId`: ambos parámetros son obligatorios; ausentes o con formato incorrecto -> 400; sin asignaciones (o planta inexistente) -> 404. La fecha no está limitada a la ventana de 10 días.
 p) Notificación a la planta (P1): `logger.info` con el nombre de la planta, el número de contenedores y el número de envases.
 q) `AssignmentDTO.estimatedPackages` es la suma de envases de los contenedores asignados; `assignedBy` es el email del empleado del `userToken`.
+
+r) **Token en cada petición del personal** (sustituye a b y j): no hay botón Authorize ni `OpenApiConfig`. Los endpoints del personal reciben el token como `@RequestParam("token")`, visible en la propia petición de Swagger (ejemplo `pega-aqui-el-token-del-login`), y el controller lo valida con `AuthService.getEmployeeByToken`: ausente o inválido -> 401 (se comprueba antes que el resto de validaciones). Llevan `token`: `POST /containers`, `PUT /containers/{containerId}`, `GET /containers/{containerId}/readings`, `GET /containers/readings`, `GET /plants/capacity/date/{date}` y `GET /assignments` (cada uno documenta además 401). `POST /assignments` mantiene el token en `userToken` del body (según la especificación). NO llevan token: `POST /auth/login`, `POST /auth/logout` (token en el body) y `POST /containers/{containerId}/readings` (lo envía el sensor).
+s) **PUT /containers/{containerId}** (3.2.5): actualiza `location`, `postalCode` e `initialCapacity` con las mismas validaciones que la creación (`ContainerService.updateContainer`). Orden de comprobación: token (401), body ausente o `containerId` del body distinto al de la ruta (400), datos inválidos (400), contenedor inexistente (404). Responde 200 con el `ContainerDTO` actualizado.
+t) **Controllers**: `PlantController` se fusiona en `AssignmentController`, que atiende `/plants/capacity/date/{date}` y `/assignments` (sin `@RequestMapping` de clase, cada método declara su ruta completa). Las rutas no cambian.
+u) **ContainerReading** no tiene atributo `id`: una lectura se identifica por contenedor + fecha, que ya es la clave con la que se almacena (una por contenedor y día).

@@ -7,17 +7,20 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import es.deusto.sd.ecoembes.dto.AssignmentDTO;
 import es.deusto.sd.ecoembes.dto.AssignmentRequestDTO;
+import es.deusto.sd.ecoembes.dto.PlantCapacityDTO;
 import es.deusto.sd.ecoembes.entity.Assignment;
 import es.deusto.sd.ecoembes.entity.Container;
+import es.deusto.sd.ecoembes.entity.PlantCapacity;
 import es.deusto.sd.ecoembes.service.AssignmentService;
+import es.deusto.sd.ecoembes.service.AuthService;
 import es.deusto.sd.ecoembes.service.ContainerService;
 import es.deusto.sd.ecoembes.service.PlantService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,18 +28,63 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-// Patrón Façade: este @RestController es la única puerta de entrada HTTP de las asignaciones de contenedores a plantas. Solo se ocupa de la capa
-// web (rutas, códigos HTTP y conversión entidad <-> DTO); la lógica de negocio está en AssignmentService.
+// Patrón Façade: este @RestController es la única puerta de entrada HTTP de la consulta de capacidad de las plantas y de las
+// asignaciones de contenedores a plantas. Se fusionan en un solo controller porque ambas operaciones forman un mismo flujo de
+// trabajo del personal (consultar la capacidad y asignar contenedores). Solo se ocupa de la capa web (rutas, códigos HTTP y
+// conversión entidad <-> DTO); la lógica de negocio está en PlantService y AssignmentService.
+// Como las rutas cuelgan de dos prefijos (/plants y /assignments), no hay @RequestMapping de clase: cada método declara su ruta completa.
 // El service lanza RuntimeException con un mensaje constante y el controller lo traduce a un código HTTP.
+// Los endpoints del personal reciben el token como parámetro "token" y lo validan con AuthService.getEmployeeByToken
+// (ausente o inválido -> 401). POST /assignments sigue llevándolo en el campo userToken del cuerpo, como indica la especificación.
 @RestController
-@RequestMapping("/assignments")
-@Tag(name = "Controlador de asignaciones", description = "Operaciones para asignar contenedores a plantas de reciclaje")
+@Tag(name = "Controlador de asignaciones", description = "Operaciones para consultar la capacidad de las plantas de reciclaje y asignarles contenedores")
 public class AssignmentController {
 
-	private final AssignmentService assignmentService;
+	private static final String TOKEN_DESCRIPTION = "Token de sesión devuelto por /auth/login";
+	private static final String TOKEN_EXAMPLE = "pega-aqui-el-token-del-login";
 
-	public AssignmentController(AssignmentService assignmentService) {
+	private final AssignmentService assignmentService;
+	private final PlantService plantService;
+	private final AuthService authService;
+
+	public AssignmentController(AssignmentService assignmentService, PlantService plantService, AuthService authService) {
 		this.assignmentService = assignmentService;
+		this.plantService = plantService;
+		this.authService = authService;
+	}
+
+	// Capacidad disponible de todas las plantas en una fecha
+	@Operation(
+		summary = "Consultar la capacidad disponible de las plantas en una fecha",
+		description = "Devuelve la capacidad disponible (en toneladas: capacidad diaria comunicada menos lo ya asignado) de todas las plantas de reciclaje para una fecha entre hoy y hoy+10 días. Requiere el token del login en el parámetro token.",
+		responses = {
+			@ApiResponse(responseCode = "200", description = "OK: capacidades devueltas correctamente"),
+			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: fecha no válida o fuera de rango"),
+			@ApiResponse(responseCode = "401", description = "No autorizado: token ausente o no válido"),
+			@ApiResponse(responseCode = "404", description = "No encontrado: no hay información de capacidad para esa fecha"),
+		}
+	)
+	@GetMapping("/plants/capacity/date/{date}")
+	public ResponseEntity<List<PlantCapacityDTO>> getPlantsCapacity(
+			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "token", required = false) String token,
+			@Parameter(name = "date", description = "Fecha de la consulta (yyyy-MM-dd)", required = true, example = "2026-11-08")
+			@PathVariable("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+		if (authService.getEmployeeByToken(token) == null) {
+			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+		}
+
+		try {
+			List<PlantCapacity> capacities = plantService.getPlantsCapacity(date);
+
+			return new ResponseEntity<>(capacities.stream().map(this::capacityToDTO).toList(), HttpStatus.OK);
+		} catch (RuntimeException e) {
+			return switch (String.valueOf(e.getMessage())) {
+				case PlantService.INVALID_DATE -> new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+				case PlantService.NO_CAPACITY_FOUND -> new ResponseEntity<>(HttpStatus.NOT_FOUND);
+				default -> new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+			};
+		}
 	}
 
 	// Asignar contenedores a una planta
@@ -51,7 +99,7 @@ public class AssignmentController {
 			@ApiResponse(responseCode = "409", description = "Conflicto: la capacidad disponible de la planta no basta, o un contenedor ya está asignado ese día"),
 		}
 	)
-	@PostMapping
+	@PostMapping("/assignments")
 	public ResponseEntity<AssignmentDTO> createAssignment(
 			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Datos de la asignación", required = true)
 			@RequestBody(required = false) AssignmentRequestDTO request) {
@@ -80,19 +128,26 @@ public class AssignmentController {
 	// Asignaciones de una planta en una fecha
 	@Operation(
 		summary = "Consultar las asignaciones de una planta",
-		description = "Devuelve las asignaciones realizadas a una planta en una fecha.",
+		description = "Devuelve las asignaciones realizadas a una planta en una fecha. Requiere el token del login en el parámetro token.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OK: asignaciones devueltas correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: parámetros no válidos"),
+			@ApiResponse(responseCode = "401", description = "No autorizado: token ausente o no válido"),
 			@ApiResponse(responseCode = "404", description = "No encontrado: no hay asignaciones con esos criterios"),
 		}
 	)
-	@GetMapping
+	@GetMapping("/assignments")
 	public ResponseEntity<List<AssignmentDTO>> getAssignments(
+			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "token", required = false) String token,
 			@Parameter(name = "date", description = "Fecha de las asignaciones (yyyy-MM-dd)", required = true, example = "2026-11-08")
 			@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
 			@Parameter(name = "plantId", description = "Identificador de la planta", required = true, example = "PLANT-1")
 			@RequestParam("plantId") String plantId) {
+		if (authService.getEmployeeByToken(token) == null) {
+			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+		}
+
 		try {
 			List<Assignment> assignments = assignmentService.getAssignments(date, plantId);
 
@@ -104,6 +159,11 @@ public class AssignmentController {
 				default -> new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
 			};
 		}
+	}
+
+	private PlantCapacityDTO capacityToDTO(PlantCapacity capacity) {
+		return new PlantCapacityDTO(capacity.getPlant().getId(), capacity.getPlant().getName(), capacity.getDate(),
+				(float) assignmentService.getAvailableTons(capacity.getPlant().getId(), capacity.getDate()));
 	}
 
 	private AssignmentDTO assignmentToDTO(Assignment assignment) {
