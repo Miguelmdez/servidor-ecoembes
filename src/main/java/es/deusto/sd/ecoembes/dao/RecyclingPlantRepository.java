@@ -1,5 +1,6 @@
 package es.deusto.sd.ecoembes.dao;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,6 +13,9 @@ import jakarta.persistence.LockModeType;
 
 // Acceso a datos de las plantas de reciclaje (la clave es su identificador, por ejemplo "PLANT-1").
 public interface RecyclingPlantRepository extends JpaRepository<RecyclingPlant, String> {
+
+	// Todas las plantas ordenadas por identificador
+	List<RecyclingPlant> findAllByOrderById();
 
 	// Recupera la planta bloqueando su fila para escritura. Se usa al crear una asignación: así dos
 	// asignaciones simultáneas a la misma planta se ejecutan una detrás de otra y no pueden superar

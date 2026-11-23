@@ -11,11 +11,12 @@ import org.springframework.context.annotation.Configuration;
 
 import es.deusto.sd.ecoembes.dao.EmployeeRepository;
 import es.deusto.sd.ecoembes.entity.Employee;
+import es.deusto.sd.ecoembes.entity.GatewayType;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
 import es.deusto.sd.ecoembes.service.ContainerService;
 import es.deusto.sd.ecoembes.service.PlantService;
 
-// Carga los datos de prueba al arrancar (empleados, plantas con su capacidad, contenedores y lecturas).
+// Carga los datos de prueba al arrancar (empleados, plantas, contenedores y lecturas).
 // Como la base de datos H2 está en fichero y conserva los datos entre arranques, SOLO inserta si la base
 // de datos está vacía (no hay ningún empleado); si no, se respetan los datos que ya existen.
 @Configuration
@@ -42,21 +43,13 @@ public class DataInitializer {
 			logger.info("Empleados guardados");
 
 			// Plantas de reciclaje (añadir una planta nueva solo requiere añadir datos aquí)
+			// con su protocolo, host y puerto. La capacidad ya no se guarda aquí: la comunica cada planta.
 			List<RecyclingPlant> plants = List.of(
-				new RecyclingPlant("PLANT-1", "PlasSB Ltd."),
-				new RecyclingPlant("PLANT-2", "ContSocket Ltd."));
+				new RecyclingPlant("PLANT-1", "PlasSB Ltd.", GatewayType.REST, "localhost", 8081),
+				new RecyclingPlant("PLANT-2", "ContSocket Ltd.", GatewayType.SOCKET, "localhost", 8082));
 
 			for (RecyclingPlant plant : plants) {
 				plantService.addPlant(plant);
-			}
-
-			// Capacidad diaria en toneladas de hoy a hoy+10 días. El día hoy+3 es muy baja a propósito,
-			// para poder provocar un 409 por falta de capacidad con los contenedores de prueba.
-			for (int i = 0; i <= PlantService.MAX_DAYS_AHEAD; i++) {
-				LocalDate day = LocalDate.now().plusDays(i);
-
-				plantService.setCapacity("PLANT-1", day, i == 3 ? 0.02 : 6.0 + (i % 3) * 0.5);
-				plantService.setCapacity("PLANT-2", day, i == 3 ? 0.03 : 4.0 + (i % 4) * 0.5);
 			}
 
 			// 6 contenedores en 2 códigos postales (capacidad inicial en envases)
@@ -72,8 +65,8 @@ public class DataInitializer {
 				sensorSimulator.simulateDay(LocalDate.now().minusDays(i));
 			}
 
-			logger.info("{} plantas con capacidad para los próximos {} días y {} contenedores con 7 días de lecturas guardados",
-					plants.size(), PlantService.MAX_DAYS_AHEAD, containerService.getContainers().size());
+			logger.info("{} plantas y {} contenedores con 7 días de lecturas guardados",
+					plants.size(), containerService.getContainers().size());
 		};
 	}
 }

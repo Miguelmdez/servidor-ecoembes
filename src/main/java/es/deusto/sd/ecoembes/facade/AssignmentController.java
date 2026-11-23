@@ -18,7 +18,6 @@ import es.deusto.sd.ecoembes.dto.AssignmentRequestDTO;
 import es.deusto.sd.ecoembes.dto.PlantCapacityDTO;
 import es.deusto.sd.ecoembes.entity.Assignment;
 import es.deusto.sd.ecoembes.entity.Container;
-import es.deusto.sd.ecoembes.entity.PlantCapacity;
 import es.deusto.sd.ecoembes.service.AssignmentService;
 import es.deusto.sd.ecoembes.service.AuthService;
 import es.deusto.sd.ecoembes.service.ContainerService;
@@ -56,12 +55,13 @@ public class AssignmentController {
 	// Capacidad disponible de todas las plantas en una fecha
 	@Operation(
 		summary = "Consultar la capacidad disponible de las plantas en una fecha",
-		description = "Devuelve la capacidad disponible (en toneladas: capacidad diaria comunicada menos lo ya asignado) de todas las plantas de reciclaje para una fecha entre hoy y hoy+10 días. Requiere el token del login en el parámetro userToken.",
+		description = "Pregunta a cada planta de reciclaje (por su gateway REST o de sockets) su capacidad disponible en toneladas para una fecha entre hoy y hoy+10 días. Las plantas sin datos para esa fecha se omiten. Requiere el token del login en el parámetro userToken.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OK: capacidades devueltas correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: fecha no válida o fuera de rango"),
 			@ApiResponse(responseCode = "401", description = "No autorizado: token ausente o no válido"),
-			@ApiResponse(responseCode = "404", description = "No encontrado: no hay información de capacidad para esa fecha"),
+			@ApiResponse(responseCode = "404", description = "No encontrado: ninguna planta tiene información de capacidad para esa fecha"),
+			@ApiResponse(responseCode = "503", description = "Servicio no disponible: alguna planta no responde"),
 		}
 	)
 	@GetMapping("/plants/capacity/date/{date}")
@@ -75,13 +75,14 @@ public class AssignmentController {
 		}
 
 		try {
-			List<PlantCapacity> capacities = plantService.getPlantsCapacity(date);
+			List<PlantService.PlantAvailability> capacities = plantService.getPlantsCapacity(date);
 
 			return new ResponseEntity<>(capacities.stream().map(this::capacityToDTO).toList(), HttpStatus.OK);
 		} catch (RuntimeException e) {
 			return switch (String.valueOf(e.getMessage())) {
 				case PlantService.INVALID_DATE -> new ResponseEntity<>(HttpStatus.BAD_REQUEST);
 				case PlantService.NO_CAPACITY_FOUND -> new ResponseEntity<>(HttpStatus.NOT_FOUND);
+				case PlantService.PLANT_UNAVAILABLE -> new ResponseEntity<>(HttpStatus.SERVICE_UNAVAILABLE);
 				default -> new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
 			};
 		}
@@ -96,7 +97,8 @@ public class AssignmentController {
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: datos de entrada no válidos"),
 			@ApiResponse(responseCode = "401", description = "No autorizado: usuario no autenticado"),
 			@ApiResponse(responseCode = "404", description = "No encontrado: no existe la planta o alguno de los contenedores"),
-			@ApiResponse(responseCode = "409", description = "Conflicto: la capacidad disponible de la planta no basta, o un contenedor ya está asignado ese día"),
+			@ApiResponse(responseCode = "409", description = "Conflicto: la capacidad disponible de la planta no basta, la planta rechaza la asignación o un contenedor ya está asignado ese día"),
+			@ApiResponse(responseCode = "503", description = "Servicio no disponible: la planta no responde"),
 		}
 	)
 	@PostMapping("/assignments")
@@ -118,8 +120,9 @@ public class AssignmentController {
 				case AssignmentService.UNAUTHORIZED -> new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 				case PlantService.PLANT_NOT_FOUND, ContainerService.CONTAINER_NOT_FOUND ->
 					new ResponseEntity<>(HttpStatus.NOT_FOUND);
-				case AssignmentService.INSUFFICIENT_CAPACITY, AssignmentService.CONTAINER_ALREADY_ASSIGNED ->
-					new ResponseEntity<>(HttpStatus.CONFLICT);
+				case AssignmentService.INSUFFICIENT_CAPACITY, AssignmentService.CONTAINER_ALREADY_ASSIGNED,
+						AssignmentService.PLANT_REJECTED -> new ResponseEntity<>(HttpStatus.CONFLICT);
+				case PlantService.PLANT_UNAVAILABLE -> new ResponseEntity<>(HttpStatus.SERVICE_UNAVAILABLE);
 				default -> new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
 			};
 		}
@@ -161,9 +164,10 @@ public class AssignmentController {
 		}
 	}
 
-	private PlantCapacityDTO capacityToDTO(PlantCapacity capacity) {
-		return new PlantCapacityDTO(capacity.getPlant().getId(), capacity.getPlant().getName(), capacity.getDate(),
-				(float) assignmentService.getAvailableTons(capacity.getPlant().getId(), capacity.getDate()));
+	// capacity = capacidad disponible que informa la propia planta
+	private PlantCapacityDTO capacityToDTO(PlantService.PlantAvailability availability) {
+		return new PlantCapacityDTO(availability.plant().getId(), availability.plant().getName(), availability.date(),
+				(float) availability.availableTons());
 	}
 
 	private AssignmentDTO assignmentToDTO(Assignment assignment) {

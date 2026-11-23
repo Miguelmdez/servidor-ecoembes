@@ -1,19 +1,21 @@
 package es.deusto.sd.ecoembes.service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import es.deusto.sd.ecoembes.dao.PlantCapacityRepository;
 import es.deusto.sd.ecoembes.dao.RecyclingPlantRepository;
-import es.deusto.sd.ecoembes.entity.PlantCapacity;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
+import es.deusto.sd.ecoembes.external.PlantUnavailableException;
+import es.deusto.sd.ecoembes.external.RecyclingPlantGatewayFactory;
 
-// Patrón AppService: lógica de las plantas de reciclaje y de la capacidad diaria que comunican, guardadas en
-// la base de datos. Las plantas y sus capacidades son datos: añadir una planta nueva solo requiere llamar a
-// addPlant y setCapacity, sin modificar la API ni el código.
+// Patrón AppService: lógica de las plantas de reciclaje. Las plantas (con su protocolo, host y puerto) están en la
+// base de datos; la capacidad NO se guarda aquí: se pregunta a cada planta a través de su gateway (patrón Gateway,
+// elegido por RecyclingPlantGatewayFactory). Añadir una planta nueva solo requiere añadir sus datos.
 @Service
 public class PlantService {
 
@@ -21,16 +23,20 @@ public class PlantService {
 	public static final String INVALID_DATE = "Fecha no válida o fuera de rango";
 	public static final String NO_CAPACITY_FOUND = "No hay información de capacidad";
 	public static final String PLANT_NOT_FOUND = "Planta no encontrada";
+	public static final String PLANT_UNAVAILABLE = "La planta no responde";
 
 	// Las plantas comunican su capacidad con una antelación máxima de este número de días
 	public static final int MAX_DAYS_AHEAD = 10;
 
-	private final RecyclingPlantRepository plantRepository;
-	private final PlantCapacityRepository capacityRepository;
+	// Capacidad disponible (en toneladas) que ha comunicado una planta para una fecha
+	public record PlantAvailability(RecyclingPlant plant, LocalDate date, double availableTons) { }
 
-	public PlantService(RecyclingPlantRepository plantRepository, PlantCapacityRepository capacityRepository) {
+	private final RecyclingPlantRepository plantRepository;
+	private final RecyclingPlantGatewayFactory gatewayFactory;
+
+	public PlantService(RecyclingPlantRepository plantRepository, RecyclingPlantGatewayFactory gatewayFactory) {
 		this.plantRepository = plantRepository;
-		this.capacityRepository = capacityRepository;
+		this.gatewayFactory = gatewayFactory;
 	}
 
 	// Añadir una planta nueva solo requiere datos: no hay que cambiar código. Si ya existe, no hace nada.
@@ -41,35 +47,27 @@ public class PlantService {
 		}
 	}
 
-	// Una planta comunica su capacidad (en toneladas) para un día; reemplaza la anterior de ese día
-	@Transactional
-	public void setCapacity(String plantId, LocalDate date, double tons) {
-		RecyclingPlant plant = getPlant(plantId);
-
-		if (plant == null) {
-			throw new RuntimeException(PLANT_NOT_FOUND);
-		}
-
-		if (date == null || tons < 0) {
-			throw new RuntimeException(INVALID_DATE);
-		}
-
-		PlantCapacity capacity = capacityRepository.findByPlantIdAndDate(plantId, date)
-				.orElseGet(() -> new PlantCapacity(plant, date, tons));
-		capacity.setTons(tons);
-		capacityRepository.save(capacity);
-	}
-
-	// Capacidad comunicada por todas las plantas para una fecha, ordenada por identificador de planta.
-	// Fecha fuera de la ventana (hoy .. hoy+10) -> INVALID_DATE; ninguna planta con datos -> NO_CAPACITY_FOUND.
-	// Es la capacidad diaria comunicada; el controller la convierte en capacidad DISPONIBLE descontando
-	// las asignaciones (ese cálculo vive en AssignmentService para no duplicarlo).
-	public List<PlantCapacity> getPlantsCapacity(LocalDate date) {
+	// Capacidad disponible de todas las plantas en una fecha, ordenada por identificador de planta, preguntándosela a
+	// cada planta. Fecha fuera de la ventana (hoy .. hoy+10) -> INVALID_DATE; las plantas sin datos para esa fecha se
+	// omiten; ninguna planta con datos -> NO_CAPACITY_FOUND; si alguna planta no responde -> PLANT_UNAVAILABLE.
+	public List<PlantAvailability> getPlantsCapacity(LocalDate date) {
 		if (!isInWindow(date)) {
 			throw new RuntimeException(INVALID_DATE);
 		}
 
-		List<PlantCapacity> result = capacityRepository.findByDateOrderByPlantId(date);
+		List<PlantAvailability> result = new ArrayList<>();
+
+		for (RecyclingPlant plant : plantRepository.findAllByOrderById()) {
+			Optional<Double> available;
+
+			try {
+				available = gatewayFactory.getGateway(plant).getCapacity(date);
+			} catch (PlantUnavailableException e) {
+				throw new RuntimeException(PLANT_UNAVAILABLE, e);
+			}
+
+			available.ifPresent(tons -> result.add(new PlantAvailability(plant, date, tons)));
+		}
 
 		if (result.isEmpty()) {
 			throw new RuntimeException(NO_CAPACITY_FOUND);
@@ -88,11 +86,6 @@ public class PlantService {
 	// Hay que llamarlo dentro de una transacción (la del método que crea la asignación).
 	public RecyclingPlant getPlantForUpdate(String plantId) {
 		return plantId == null ? null : plantRepository.findByIdForUpdate(plantId).orElse(null);
-	}
-
-	// Capacidad (en toneladas) de una planta para una fecha, o null si no la ha comunicado
-	public PlantCapacity getPlantCapacity(String plantId, LocalDate date) {
-		return plantId == null || date == null ? null : capacityRepository.findByPlantIdAndDate(plantId, date).orElse(null);
 	}
 
 	// Verdadero si la fecha está entre hoy y hoy+10 días (ambos incluidos)
