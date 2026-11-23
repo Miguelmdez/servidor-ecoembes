@@ -29,7 +29,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 // Patrón Façade: este @RestController es la única puerta de entrada HTTP de los contenedores y sus lecturas. Solo se ocupa de la capa
 // web (rutas, códigos HTTP y conversión entidad <-> DTO); la lógica de negocio está en ContainerService.
 // El service lanza RuntimeException con un mensaje constante y el controller lo traduce a un código HTTP.
-// Los endpoints del personal reciben el token como parámetro "token" de la propia petición y lo validan con
+// Los endpoints del personal reciben el token como parámetro "userToken" de la propia petición y lo validan con
 // AuthService.getEmployeeByToken (ausente o inválido -> 401). El del sensor no lleva token: lo envía el propio sensor.
 @RestController
 @RequestMapping("/containers")
@@ -50,7 +50,7 @@ public class ContainerController {
 	// Crear un contenedor nuevo
 	@Operation(
 		summary = "Crear un contenedor",
-		description = "Registra un nuevo contenedor de reciclaje (identificador, ubicación, código postal y capacidad inicial en envases). Requiere el token del login en el parámetro token.",
+		description = "Registra un nuevo contenedor de reciclaje (identificador, ubicación, código postal y capacidad inicial en envases). Requiere el token del login en el parámetro userToken.",
 		responses = {
 			@ApiResponse(responseCode = "201", description = "Creado: contenedor creado correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: datos de entrada no válidos"),
@@ -60,11 +60,11 @@ public class ContainerController {
 	)
 	@PostMapping
 	public ResponseEntity<Void> createContainer(
-			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
-			@RequestParam(value = "token", required = false) String token,
+			@Parameter(name = "userToken", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "userToken", required = false) String userToken,
 			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Datos del contenedor", required = true)
 			@RequestBody(required = false) ContainerDTO containerDTO) {
-		if (authService.getEmployeeByToken(token) == null) {
+		if (authService.getEmployeeByToken(userToken) == null) {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
 
@@ -85,7 +85,7 @@ public class ContainerController {
 	// Actualizar un contenedor existente
 	@Operation(
 		summary = "Actualizar un contenedor",
-		description = "Actualiza la ubicación, el código postal y la capacidad inicial de un contenedor existente. Si el containerId del cuerpo no coincide con el de la ruta, devuelve 400. Requiere el token del login en el parámetro token.",
+		description = "Actualiza la ubicación, el código postal y la capacidad inicial de un contenedor existente. Si el containerId del cuerpo no coincide con el de la ruta, devuelve 400. Requiere el token del login en el parámetro userToken.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OK: contenedor actualizado correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: datos no válidos o identificador del cuerpo distinto al de la ruta"),
@@ -95,13 +95,13 @@ public class ContainerController {
 	)
 	@PutMapping("/{containerId}")
 	public ResponseEntity<ContainerDTO> updateContainer(
-			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
-			@RequestParam(value = "token", required = false) String token,
+			@Parameter(name = "userToken", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "userToken", required = false) String userToken,
 			@Parameter(name = "containerId", description = "Identificador del contenedor", required = true, example = "CONT-001")
 			@PathVariable("containerId") String containerId,
 			@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Nuevos datos del contenedor", required = true)
 			@RequestBody(required = false) ContainerDTO containerDTO) {
-		if (authService.getEmployeeByToken(token) == null) {
+		if (authService.getEmployeeByToken(userToken) == null) {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
 
@@ -154,7 +154,7 @@ public class ContainerController {
 	// Lecturas de un contenedor en un periodo
 	@Operation(
 		summary = "Consultar las lecturas de un contenedor",
-		description = "Devuelve las lecturas de un contenedor entre dos fechas (ambas incluidas). Requiere el token del login en el parámetro token.",
+		description = "Devuelve las lecturas de un contenedor entre dos fechas (ambas incluidas). Requiere el token del login en el parámetro userToken.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OK: lecturas devueltas correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: fechas o periodo no válidos"),
@@ -164,15 +164,15 @@ public class ContainerController {
 	)
 	@GetMapping("/{containerId}/readings")
 	public ResponseEntity<List<ContainerReadingDTO>> getContainerReadings(
-			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
-			@RequestParam(value = "token", required = false) String token,
+			@Parameter(name = "userToken", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "userToken", required = false) String userToken,
 			@Parameter(name = "containerId", description = "Identificador del contenedor", required = true, example = "CONT-001")
 			@PathVariable("containerId") String containerId,
 			@Parameter(name = "startDate", description = "Inicio del periodo (yyyy-MM-dd)", required = true, example = "2026-11-01")
 			@RequestParam("startDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
 			@Parameter(name = "endDate", description = "Fin del periodo (yyyy-MM-dd)", required = true, example = "2026-11-07")
 			@RequestParam("endDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-		if (authService.getEmployeeByToken(token) == null) {
+		if (authService.getEmployeeByToken(userToken) == null) {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
 
@@ -188,7 +188,7 @@ public class ContainerController {
 	// Lecturas de los contenedores de una zona
 	@Operation(
 		summary = "Consultar el estado de los contenedores de una zona",
-		description = "Devuelve las lecturas de todos los contenedores de un código postal en una fecha. Requiere el token del login en el parámetro token.",
+		description = "Devuelve las lecturas de todos los contenedores de un código postal en una fecha. Requiere el token del login en el parámetro userToken.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OK: contenedores y su estado devueltos correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: parámetros no válidos"),
@@ -198,13 +198,13 @@ public class ContainerController {
 	)
 	@GetMapping("/readings")
 	public ResponseEntity<List<ContainerReadingDTO>> getZoneReadings(
-			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
-			@RequestParam(value = "token", required = false) String token,
+			@Parameter(name = "userToken", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "userToken", required = false) String userToken,
 			@Parameter(name = "postalCode", description = "Código postal de la zona", required = true, example = "48001")
 			@RequestParam("postalCode") String postalCode,
 			@Parameter(name = "date", description = "Fecha de la consulta (yyyy-MM-dd)", required = true, example = "2026-11-07")
 			@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-		if (authService.getEmployeeByToken(token) == null) {
+		if (authService.getEmployeeByToken(userToken) == null) {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
 

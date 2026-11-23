@@ -4,14 +4,13 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import es.deusto.sd.ecoembes.dao.AssignmentRepository;
 import es.deusto.sd.ecoembes.entity.Assignment;
 import es.deusto.sd.ecoembes.entity.Container;
 import es.deusto.sd.ecoembes.entity.ContainerReading;
@@ -21,7 +20,7 @@ import es.deusto.sd.ecoembes.entity.RecyclingPlant;
 
 // Patrón AppService: orquesta la asignación de contenedores a plantas. Colabora con AuthService
 // (quién es el empleado), ContainerService (envases de cada contenedor) y PlantService (capacidad de la
-// planta), y guarda el ESTADO DEL SERVIDOR de las asignaciones en memoria (Prototipo 1).
+// planta), y guarda las asignaciones en la base de datos mediante AssignmentRepository.
 @Service
 public class AssignmentService {
 
@@ -40,25 +39,24 @@ public class AssignmentService {
 	private final AuthService authService;
 	private final ContainerService containerService;
 	private final PlantService plantService;
+	private final AssignmentRepository assignmentRepository;
 
-	// Asignaciones indexadas por su identificador interno
-	private final Map<Long, Assignment> assignmentStore = new ConcurrentHashMap<>();
-
-	// Generador de identificadores de asignación
-	private final AtomicLong assignmentSequence = new AtomicLong(1);
-
-	public AssignmentService(AuthService authService, ContainerService containerService, PlantService plantService) {
+	public AssignmentService(AuthService authService, ContainerService containerService, PlantService plantService,
+			AssignmentRepository assignmentRepository) {
 		this.authService = authService;
 		this.containerService = containerService;
 		this.plantService = plantService;
+		this.assignmentRepository = assignmentRepository;
 	}
 
 	// Asigna contenedores a una planta si esta tiene capacidad disponible ese día.
 	// Orden de las comprobaciones: token (UNAUTHORIZED), datos (INVALID_DATA), planta y contenedores
 	// (PLANT_NOT_FOUND / CONTAINER_NOT_FOUND), contenedor ya asignado ese día y capacidad (ambos
-	// producen un conflicto). Es synchronized para que comprobar la capacidad y guardar la asignación
-	// sea una operación atómica: dos asignaciones simultáneas no pueden superar la capacidad entre las dos.
-	public synchronized Assignment createAssignment(String userToken, String plantId, List<String> containerIds,
+	// producen un conflicto). Es @Transactional y bloquea la fila de la planta (getPlantForUpdate) para que
+	// comprobar la capacidad y guardar la asignación sea una operación atómica: dos asignaciones simultáneas
+	// a la misma planta se ejecutan una detrás de otra y no pueden superar la capacidad entre las dos.
+	@Transactional
+	public Assignment createAssignment(String userToken, String plantId, List<String> containerIds,
 			LocalDate date) {
 		Employee employee = authService.getEmployeeByToken(userToken);
 
@@ -72,7 +70,7 @@ public class AssignmentService {
 			throw new RuntimeException(INVALID_DATA);
 		}
 
-		RecyclingPlant plant = plantService.getPlant(plantId);
+		RecyclingPlant plant = plantService.getPlantForUpdate(plantId);
 
 		if (plant == null) {
 			throw new RuntimeException(PlantService.PLANT_NOT_FOUND);
@@ -107,9 +105,8 @@ public class AssignmentService {
 		}
 
 		// assignedBy guarda el email del empleado del token: registro de auditoría
-		Assignment assignment = new Assignment(assignmentSequence.getAndIncrement(), plant, date, containers,
-				totalPackages, tons, employee.getEmail());
-		assignmentStore.put(assignment.getId(), assignment);
+		Assignment assignment = assignmentRepository.save(
+				new Assignment(plant, date, containers, totalPackages, tons, employee.getEmail()));
 
 		// Notificación a la planta (en el Prototipo 1 se simula con un mensaje de log)
 		logger.info("Planta {} notificada: {} contenedores, {} envases para el {}", plant.getName(), containers.size(),
@@ -125,19 +122,11 @@ public class AssignmentService {
 			throw new RuntimeException(INVALID_DATA);
 		}
 
-		List<Assignment> result = new ArrayList<>();
-
-		for (Assignment assignment : assignmentStore.values()) {
-			if (assignment.getDate().equals(date) && assignment.getPlant().getId().equals(plantId)) {
-				result.add(assignment);
-			}
-		}
+		List<Assignment> result = assignmentRepository.findByDateAndPlantIdOrderById(date, plantId);
 
 		if (result.isEmpty()) {
 			throw new RuntimeException(NO_ASSIGNMENTS_FOUND);
 		}
-
-		result.sort((a, b) -> Long.compare(a.getId(), b.getId()));
 
 		return result;
 	}
@@ -153,30 +142,13 @@ public class AssignmentService {
 
 	// Verdadero si el contenedor ya está en alguna asignación de ese día (de cualquier planta)
 	private boolean isContainerAssigned(String containerId, LocalDate date) {
-		for (Assignment assignment : assignmentStore.values()) {
-			if (assignment.getDate().equals(date)) {
-				for (Container container : assignment.getContainers()) {
-					if (container.getId().equals(containerId)) {
-						return true;
-					}
-				}
-			}
-		}
-
-		return false;
+		return assignmentRepository.existsByDateAndContainersId(date, containerId);
 	}
 
 	// Toneladas ya asignadas a una planta en una fecha
 	private double getAssignedTons(String plantId, LocalDate date) {
-		double total = 0;
-
-		for (Assignment assignment : assignmentStore.values()) {
-			if (assignment.getDate().equals(date) && assignment.getPlant().getId().equals(plantId)) {
-				total += assignment.getTons();
-			}
-		}
-
-		return total;
+		return assignmentRepository.findByDateAndPlantIdOrderById(date, plantId).stream()
+				.mapToDouble(Assignment::getTons).sum();
 	}
 
 	// Conversión de envases a toneladas según el supuesto KG_PER_PACKAGE

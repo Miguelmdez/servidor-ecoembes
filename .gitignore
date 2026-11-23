@@ -37,3 +37,6 @@ Thumbs.db
 .classpath
 .settings/
 bin/
+
+# Base de datos H2 en fichero
+db/

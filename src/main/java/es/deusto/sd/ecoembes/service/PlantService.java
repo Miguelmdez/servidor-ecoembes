@@ -1,20 +1,19 @@
 package es.deusto.sd.ecoembes.service;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import es.deusto.sd.ecoembes.dao.PlantCapacityRepository;
+import es.deusto.sd.ecoembes.dao.RecyclingPlantRepository;
 import es.deusto.sd.ecoembes.entity.PlantCapacity;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
 
-// Patrón AppService: lógica de las plantas de reciclaje y de la capacidad diaria que comunican, con su
-// ESTADO DEL SERVIDOR en memoria (Prototipo 1). Las plantas y sus capacidades son datos: añadir una
-// planta nueva solo requiere llamar a addPlant y setCapacity, sin modificar la API ni el código.
+// Patrón AppService: lógica de las plantas de reciclaje y de la capacidad diaria que comunican, guardadas en
+// la base de datos. Las plantas y sus capacidades son datos: añadir una planta nueva solo requiere llamar a
+// addPlant y setCapacity, sin modificar la API ni el código.
 @Service
 public class PlantService {
 
@@ -26,25 +25,26 @@ public class PlantService {
 	// Las plantas comunican su capacidad con una antelación máxima de este número de días
 	public static final int MAX_DAYS_AHEAD = 10;
 
-	// Plantas indexadas por su identificador
-	private final Map<String, RecyclingPlant> plantRepository = new ConcurrentHashMap<>();
+	private final RecyclingPlantRepository plantRepository;
+	private final PlantCapacityRepository capacityRepository;
 
-	// Capacidad diaria (en toneladas) comunicada por cada planta: id de planta -> fecha -> capacidad
-	private final Map<String, Map<LocalDate, PlantCapacity>> capacityStore = new ConcurrentHashMap<>();
-
-	// Generador de identificadores internos de las capacidades
-	private final AtomicLong capacitySequence = new AtomicLong(1);
+	public PlantService(RecyclingPlantRepository plantRepository, PlantCapacityRepository capacityRepository) {
+		this.plantRepository = plantRepository;
+		this.capacityRepository = capacityRepository;
+	}
 
 	// Añadir una planta nueva solo requiere datos: no hay que cambiar código. Si ya existe, no hace nada.
+	@Transactional
 	public void addPlant(RecyclingPlant plant) {
-		if (plant != null && plantRepository.putIfAbsent(plant.getId(), plant) == null) {
-			capacityStore.put(plant.getId(), new ConcurrentHashMap<>());
+		if (plant != null && !plantRepository.existsById(plant.getId())) {
+			plantRepository.save(plant);
 		}
 	}
 
 	// Una planta comunica su capacidad (en toneladas) para un día; reemplaza la anterior de ese día
+	@Transactional
 	public void setCapacity(String plantId, LocalDate date, double tons) {
-		RecyclingPlant plant = plantRepository.get(plantId);
+		RecyclingPlant plant = getPlant(plantId);
 
 		if (plant == null) {
 			throw new RuntimeException(PLANT_NOT_FOUND);
@@ -54,7 +54,10 @@ public class PlantService {
 			throw new RuntimeException(INVALID_DATE);
 		}
 
-		capacityStore.get(plantId).put(date, new PlantCapacity(capacitySequence.getAndIncrement(), plant, date, tons));
+		PlantCapacity capacity = capacityRepository.findByPlantIdAndDate(plantId, date)
+				.orElseGet(() -> new PlantCapacity(plant, date, tons));
+		capacity.setTons(tons);
+		capacityRepository.save(capacity);
 	}
 
 	// Capacidad comunicada por todas las plantas para una fecha, ordenada por identificador de planta.
@@ -66,35 +69,30 @@ public class PlantService {
 			throw new RuntimeException(INVALID_DATE);
 		}
 
-		List<PlantCapacity> result = new ArrayList<>();
-
-		for (Map<LocalDate, PlantCapacity> capacities : capacityStore.values()) {
-			PlantCapacity capacity = capacities.get(date);
-
-			if (capacity != null) {
-				result.add(capacity);
-			}
-		}
+		List<PlantCapacity> result = capacityRepository.findByDateOrderByPlantId(date);
 
 		if (result.isEmpty()) {
 			throw new RuntimeException(NO_CAPACITY_FOUND);
 		}
-
-		result.sort((a, b) -> a.getPlant().getId().compareTo(b.getPlant().getId()));
 
 		return result;
 	}
 
 	// Planta por identificador, o null si no existe (lo usan otros servicios)
 	public RecyclingPlant getPlant(String plantId) {
-		return plantId == null ? null : plantRepository.get(plantId);
+		return plantId == null ? null : plantRepository.findById(plantId).orElse(null);
+	}
+
+	// Planta por identificador bloqueando su fila hasta el final de la transacción en curso, o null si no
+	// existe. Lo usa AssignmentService para serializar las asignaciones simultáneas a una misma planta.
+	// Hay que llamarlo dentro de una transacción (la del método que crea la asignación).
+	public RecyclingPlant getPlantForUpdate(String plantId) {
+		return plantId == null ? null : plantRepository.findByIdForUpdate(plantId).orElse(null);
 	}
 
 	// Capacidad (en toneladas) de una planta para una fecha, o null si no la ha comunicado
 	public PlantCapacity getPlantCapacity(String plantId, LocalDate date) {
-		Map<LocalDate, PlantCapacity> capacities = plantId == null ? null : capacityStore.get(plantId);
-
-		return capacities == null || date == null ? null : capacities.get(date);
+		return plantId == null || date == null ? null : capacityRepository.findByPlantIdAndDate(plantId, date).orElse(null);
 	}
 
 	// Verdadero si la fecha está entre hoy y hoy+10 días (ambos incluidos)

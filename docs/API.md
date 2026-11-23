@@ -104,7 +104,7 @@ La API requiere autenticación mediante correo electrónico y contraseña. Cuand
 - Endpoint: /containers/{containerId}
 - Descripción: Permite al personal de Ecoembes actualizar la ubicación, el código postal y la capacidad inicial de un contenedor ya registrado. El identificador no se puede modificar.
 - Parámetros de entrada:
-  - token: token de la sesión activa (parámetro de la petición).
+  - userToken: token de la sesión activa (parámetro de la petición).
   - containerId: identificador del contenedor (ruta).
   - Cuerpo (ContainerDTO): location, postalCode e initialCapacity; si se incluye containerId, debe coincidir con el de la ruta.
 - Respuestas HTTP:
@@ -212,7 +212,7 @@ Representa una asignación de contenedores a una planta de reciclaje.
 9. Tras una asignación, la planta correspondiente debe recibir una notificación con el número total de contenedores y el número estimado de envases.
 
 ## 6. Decisiones de diseño
-a) **Base URL**: `/api/v1`, configurada con `server.servlet.context-path=/api/v1` (puerto 8081).
+a) **Base URL**: `/api/v1`, configurada con `server.servlet.context-path=/api/v1` (puerto 8080).
 b) *(sustituida por r)* ~~**POST /containers**: el token de sesión se envía en la cabecera `Authorization`.~~
 c) **POST /assignments**: el body es `AssignmentRequestDTO {plantId, containerIds, date, userToken}`.
 d) Los endpoints cuya especificación no incluye 401 no piden token.
@@ -240,7 +240,11 @@ o) `GET /assignments?date&plantId`: ambos parámetros son obligatorios; ausentes
 p) Notificación a la planta (P1): `logger.info` con el nombre de la planta, el número de contenedores y el número de envases.
 q) `AssignmentDTO.estimatedPackages` es la suma de envases de los contenedores asignados; `assignedBy` es el email del empleado del `userToken`.
 
-r) **Token en cada petición del personal** (sustituye a b y j): no hay botón Authorize ni `OpenApiConfig`. Los endpoints del personal reciben el token como `@RequestParam("token")`, visible en la propia petición de Swagger (ejemplo `pega-aqui-el-token-del-login`), y el controller lo valida con `AuthService.getEmployeeByToken`: ausente o inválido -> 401 (se comprueba antes que el resto de validaciones). Llevan `token`: `POST /containers`, `PUT /containers/{containerId}`, `GET /containers/{containerId}/readings`, `GET /containers/readings`, `GET /plants/capacity/date/{date}` y `GET /assignments` (cada uno documenta además 401). `POST /assignments` mantiene el token en `userToken` del body (según la especificación). NO llevan token: `POST /auth/login`, `POST /auth/logout` (token en el body) y `POST /containers/{containerId}/readings` (lo envía el sensor).
+r) **Token en cada petición del personal** (sustituye a b y j): no hay botón Authorize ni `OpenApiConfig`. Los endpoints del personal reciben el token como `@RequestParam("userToken")`, visible en la propia petición de Swagger (ejemplo `pega-aqui-el-token-del-login`), y el controller lo valida con `AuthService.getEmployeeByToken`: ausente o inválido -> 401 (se comprueba antes que el resto de validaciones). Llevan `userToken`: `POST /containers`, `PUT /containers/{containerId}`, `GET /containers/{containerId}/readings`, `GET /containers/readings`, `GET /plants/capacity/date/{date}` y `GET /assignments` (cada uno documenta además 401). `POST /assignments` mantiene el token en `userToken` del body (según la especificación). NO llevan `userToken`: `POST /auth/login`, `POST /auth/logout` (token en el body) y `POST /containers/{containerId}/readings` (lo envía el sensor).
 s) **PUT /containers/{containerId}** (3.2.5): actualiza `location`, `postalCode` e `initialCapacity` con las mismas validaciones que la creación (`ContainerService.updateContainer`). Orden de comprobación: token (401), body ausente o `containerId` del body distinto al de la ruta (400), datos inválidos (400), contenedor inexistente (404). Responde 200 con el `ContainerDTO` actualizado.
 t) **Controllers**: `PlantController` se fusiona en `AssignmentController`, que atiende `/plants/capacity/date/{date}` y `/assignments` (sin `@RequestMapping` de clase, cada método declara su ruta completa). Las rutas no cambian.
-u) **ContainerReading** no tiene atributo `id`: una lectura se identifica por contenedor + fecha, que ya es la clave con la que se almacena (una por contenedor y día).
+u) **ContainerReading** no tiene atributo `id`: una lectura se identifica por contenedor + fecha (una por contenedor y día). En P2 es la clave primaria compuesta (`@EmbeddedId` con `containerId` y `date`, `@MapsId` hacia `Container`); una lectura nueva del mismo día sustituye a la anterior.
+
+v) **Persistencia (P2)**: JPA + H2 en fichero (`./db/ecoembesdb`, `ddl-auto=update`), con repositorios en `dao/`. Los datos sobreviven a un reinicio. Las sesiones (`token -> Employee`) siguen en memoria en `AuthService` (estado del servidor), por lo que tras un reinicio hay que volver a iniciar sesión. `Assignment` -> `Container` es `@ManyToMany` y `Assignment` -> `RecyclingPlant` `@ManyToOne`. `DataInitializer` solo inserta los datos de prueba si la base de datos está vacía. Puertos: Ecoembes 8080, PlasSB 8081, ContSocket 8082.
+
+w) **Parámetro del token del personal**: se llama `userToken` (como en `POST /assignments`) en todos los endpoints que lo piden. Sustituye al nombre `token` de r) y s). `POST /auth/logout` no cambia (token en el body).

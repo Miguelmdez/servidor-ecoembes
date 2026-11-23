@@ -4,20 +4,35 @@ import java.util.Objects;
 
 import org.apache.commons.codec.digest.DigestUtils;
 
-// Entidad de dominio: empleado de Ecoembes que usa la API.
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+
+// Entidad de dominio y de persistencia: empleado de Ecoembes que usa la API.
+@Entity
 public class Employee {
 
-	private long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
+
+	@Column(nullable = false)
 	private String name;
+
+	@Column(nullable = false, unique = true)
 	private String email;
+
+	// Solo se guarda el hash de la contraseña, nunca la contraseña en claro
+	@Column(nullable = false)
 	private String password;
 
 	// Constructor sin parámetros
 	public Employee() { }
 
-	// Constructor con parámetros
-	public Employee(long id, String name, String email, String password) {
-		this.id = id;
+	// Constructor con parámetros (el id lo genera la base de datos)
+	public Employee(String name, String email, String password) {
 		this.name = name;
 		this.email = email;
 		// Las contraseñas nunca se guardan en claro: solo se conserva su hash SHA-1
@@ -30,11 +45,11 @@ public class Employee {
 	}
 
 	// Getters y setters
-	public long getId() {
+	public Long getId() {
 		return id;
 	}
 
-	public void setId(long id) {
+	public void setId(Long id) {
 		this.id = id;
 	}
 
@@ -74,6 +89,6 @@ public class Employee {
 		if (getClass() != obj.getClass())
 			return false;
 		Employee other = (Employee) obj;
-		return id == other.id;
+		return id != null && id.equals(other.id);
 	}
 }

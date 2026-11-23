@@ -2,9 +2,17 @@ package es.deusto.sd.ecoembes.entity;
 
 import java.util.Objects;
 
-// Entidad de dominio: planta de reciclaje. Añadir una planta nueva solo requiere datos, no código.
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+
+// Entidad de dominio y de persistencia: planta de reciclaje. Añadir una planta nueva solo requiere datos, no código.
+@Entity
 public class RecyclingPlant {
+	@Id
 	private String id;
+
+	@Column(nullable = false)
 	private String name;
 
 	// Constructor sin parámetros

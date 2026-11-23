@@ -6,20 +6,26 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
 
+import es.deusto.sd.ecoembes.dao.EmployeeRepository;
 import es.deusto.sd.ecoembes.entity.Employee;
 
-// Patrón AppService: contiene la lógica de autenticación y el ESTADO DEL SERVIDOR (empleados y sesiones
-// activas). Guardar las sesiones en memoria evita consultar la base de datos en cada petición, como pide
-// el enunciado. Los mapas son ConcurrentHashMap porque este bean es único (singleton) y lo comparten
+// Patrón AppService: contiene la lógica de autenticación y el ESTADO DEL SERVIDOR de las sesiones activas.
+// Los empleados se leen de la base de datos (EmployeeRepository), pero el mapa token -> empleado se mantiene
+// EN MEMORIA a propósito: así no se consulta la base de datos en cada petición para saber quién es el
+// usuario, como pide el enunciado. Consecuencia: al reiniciar el servidor las sesiones se pierden y hay que
+// volver a iniciar sesión. El mapa es ConcurrentHashMap porque este bean es único (singleton) y lo comparten
 // todos los hilos que atienden peticiones.
 @Service
 public class AuthService {
 
-	// Simula un repositorio de empleados, indexado por email
-	private final Map<String, Employee> employeeRepository = new ConcurrentHashMap<>();
+	private final EmployeeRepository employeeRepository;
 
 	// Sesiones activas: token -> empleado que ha iniciado sesión
 	private final Map<String, Employee> tokenStore = new ConcurrentHashMap<>();
+
+	public AuthService(EmployeeRepository employeeRepository) {
+		this.employeeRepository = employeeRepository;
+	}
 
 	// Inicio de sesión: comprueba que el empleado existe y que la contraseña es correcta.
 	// Devuelve el token generado, o vacío si las credenciales no son válidas.
@@ -28,11 +34,11 @@ public class AuthService {
 			return Optional.empty();
 		}
 
-		Employee employee = employeeRepository.get(email);
+		Optional<Employee> employee = employeeRepository.findByEmail(email);
 
-		if (employee != null && employee.checkPassword(password)) {
+		if (employee.isPresent() && employee.get().checkPassword(password)) {
 			String token = generateToken();
-			tokenStore.put(token, employee);
+			tokenStore.put(token, employee.get());
 
 			return Optional.of(token);
 		} else {
@@ -46,13 +52,6 @@ public class AuthService {
 			return Optional.of(true);
 		} else {
 			return Optional.empty();
-		}
-	}
-
-	// Añade un empleado al repositorio (si ya existe uno con ese email, no lo sustituye)
-	public void addEmployee(Employee employee) {
-		if (employee != null) {
-			employeeRepository.putIfAbsent(employee.getEmail(), employee);
 		}
 	}
 

@@ -34,7 +34,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 // conversión entidad <-> DTO); la lógica de negocio está en PlantService y AssignmentService.
 // Como las rutas cuelgan de dos prefijos (/plants y /assignments), no hay @RequestMapping de clase: cada método declara su ruta completa.
 // El service lanza RuntimeException con un mensaje constante y el controller lo traduce a un código HTTP.
-// Los endpoints del personal reciben el token como parámetro "token" y lo validan con AuthService.getEmployeeByToken
+// Los endpoints del personal reciben el token como parámetro "userToken" y lo validan con AuthService.getEmployeeByToken
 // (ausente o inválido -> 401). POST /assignments sigue llevándolo en el campo userToken del cuerpo, como indica la especificación.
 @RestController
 @Tag(name = "Controlador de asignaciones", description = "Operaciones para consultar la capacidad de las plantas de reciclaje y asignarles contenedores")
@@ -56,7 +56,7 @@ public class AssignmentController {
 	// Capacidad disponible de todas las plantas en una fecha
 	@Operation(
 		summary = "Consultar la capacidad disponible de las plantas en una fecha",
-		description = "Devuelve la capacidad disponible (en toneladas: capacidad diaria comunicada menos lo ya asignado) de todas las plantas de reciclaje para una fecha entre hoy y hoy+10 días. Requiere el token del login en el parámetro token.",
+		description = "Devuelve la capacidad disponible (en toneladas: capacidad diaria comunicada menos lo ya asignado) de todas las plantas de reciclaje para una fecha entre hoy y hoy+10 días. Requiere el token del login en el parámetro userToken.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OK: capacidades devueltas correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: fecha no válida o fuera de rango"),
@@ -66,11 +66,11 @@ public class AssignmentController {
 	)
 	@GetMapping("/plants/capacity/date/{date}")
 	public ResponseEntity<List<PlantCapacityDTO>> getPlantsCapacity(
-			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
-			@RequestParam(value = "token", required = false) String token,
+			@Parameter(name = "userToken", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "userToken", required = false) String userToken,
 			@Parameter(name = "date", description = "Fecha de la consulta (yyyy-MM-dd)", required = true, example = "2026-11-08")
 			@PathVariable("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-		if (authService.getEmployeeByToken(token) == null) {
+		if (authService.getEmployeeByToken(userToken) == null) {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
 
@@ -128,7 +128,7 @@ public class AssignmentController {
 	// Asignaciones de una planta en una fecha
 	@Operation(
 		summary = "Consultar las asignaciones de una planta",
-		description = "Devuelve las asignaciones realizadas a una planta en una fecha. Requiere el token del login en el parámetro token.",
+		description = "Devuelve las asignaciones realizadas a una planta en una fecha. Requiere el token del login en el parámetro userToken.",
 		responses = {
 			@ApiResponse(responseCode = "200", description = "OK: asignaciones devueltas correctamente"),
 			@ApiResponse(responseCode = "400", description = "Solicitud incorrecta: parámetros no válidos"),
@@ -138,13 +138,13 @@ public class AssignmentController {
 	)
 	@GetMapping("/assignments")
 	public ResponseEntity<List<AssignmentDTO>> getAssignments(
-			@Parameter(name = "token", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
-			@RequestParam(value = "token", required = false) String token,
+			@Parameter(name = "userToken", description = TOKEN_DESCRIPTION, required = true, example = TOKEN_EXAMPLE)
+			@RequestParam(value = "userToken", required = false) String userToken,
 			@Parameter(name = "date", description = "Fecha de las asignaciones (yyyy-MM-dd)", required = true, example = "2026-11-08")
 			@RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
 			@Parameter(name = "plantId", description = "Identificador de la planta", required = true, example = "PLANT-1")
 			@RequestParam("plantId") String plantId) {
-		if (authService.getEmployeeByToken(token) == null) {
+		if (authService.getEmployeeByToken(userToken) == null) {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
 

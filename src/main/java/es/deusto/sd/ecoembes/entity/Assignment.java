@@ -5,22 +5,55 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-// Entidad de dominio: asignación de contenedores a una planta; guarda quién la hizo (auditoría).
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.ManyToOne;
+
+// Entidad de dominio y de persistencia: asignación de contenedores a una planta; guarda quién la hizo (auditoría).
+// Una asignación tiene una planta (@ManyToOne) y varios contenedores (@ManyToMany, tabla intermedia
+// assignment_container). Los contenedores se cargan con EAGER porque el controller convierte la asignación
+// a DTO fuera de la transacción (spring.jpa.open-in-view=false).
+@Entity
 public class Assignment {
-	private long id;
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
+
+	@ManyToOne
+	@JoinColumn(name = "plant_id", nullable = false)
 	private RecyclingPlant plant;
+
+	@Column(nullable = false)
 	private LocalDate date;
+
+	@ManyToMany(fetch = FetchType.EAGER)
+	@JoinTable(name = "assignment_container",
+			joinColumns = @JoinColumn(name = "assignment_id"),
+			inverseJoinColumns = @JoinColumn(name = "container_id"))
 	private List<Container> containers = new ArrayList<>();
+
+	@Column(nullable = false)
 	private int totalPackages;
+
+	@Column(nullable = false)
 	private double tons;
+
+	// Email del empleado que hizo la asignación (auditoría)
+	@Column(nullable = false)
 	private String assignedBy;
 
 	// Constructor sin parámetros
 	public Assignment() { }
 
-	// Constructor con parámetros
-	public Assignment(long id, RecyclingPlant plant, LocalDate date, List<Container> containers, int totalPackages, double tons, String assignedBy) {
-		this.id = id;
+	// Constructor con parámetros (el id lo genera la base de datos)
+	public Assignment(RecyclingPlant plant, LocalDate date, List<Container> containers, int totalPackages, double tons, String assignedBy) {
 		this.plant = plant;
 		this.date = date;
 		this.containers = containers;
@@ -30,11 +63,11 @@ public class Assignment {
 	}
 
 	// Getters y setters
-	public long getId() {
+	public Long getId() {
 		return id;
 	}
 
-	public void setId(long id) {
+	public void setId(Long id) {
 		this.id = id;
 	}
 
@@ -101,6 +134,6 @@ public class Assignment {
 		if (getClass() != obj.getClass())
 			return false;
 		Assignment other = (Assignment) obj;
-		return id == other.id;
+		return id != null && id.equals(other.id);
 	}
 }

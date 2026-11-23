@@ -2,11 +2,25 @@ package es.deusto.sd.ecoembes.entity;
 
 import java.util.Objects;
 
-// Entidad de dominio: contenedor de reciclaje sensorizado.
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+
+// Entidad de dominio y de persistencia: contenedor de reciclaje sensorizado.
+// Su clave primaria es el identificador de negocio (por ejemplo "CONT-001"), asignado por el personal.
+@Entity
 public class Container {
+	@Id
 	private String id;
+
+	@Column(nullable = false)
 	private String location;
+
+	@Column(nullable = false)
 	private String postalCode;
+
+	// Capacidad inicial en número de envases
+	@Column(nullable = false)
 	private float initialCapacity;
 
 	// Constructor sin parámetros

@@ -9,31 +9,36 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import es.deusto.sd.ecoembes.dao.EmployeeRepository;
 import es.deusto.sd.ecoembes.entity.Employee;
 import es.deusto.sd.ecoembes.entity.RecyclingPlant;
-import es.deusto.sd.ecoembes.service.AuthService;
 import es.deusto.sd.ecoembes.service.ContainerService;
 import es.deusto.sd.ecoembes.service.PlantService;
 
-// Carga los datos de prueba al arrancar (empleados, plantas con su capacidad, contenedores y lecturas),
-// ya que en el Prototipo 1 el estado vive en memoria y empieza vacío en cada arranque.
+// Carga los datos de prueba al arrancar (empleados, plantas con su capacidad, contenedores y lecturas).
+// Como la base de datos H2 está en fichero y conserva los datos entre arranques, SOLO inserta si la base
+// de datos está vacía (no hay ningún empleado); si no, se respetan los datos que ya existen.
 @Configuration
 public class DataInitializer {
 
 	private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
 
 	@Bean
-	CommandLineRunner initData(AuthService authService, ContainerService containerService,
+	CommandLineRunner initData(EmployeeRepository employeeRepository, ContainerService containerService,
 			PlantService plantService, SensorSimulator sensorSimulator) {
 		return args -> {
-			// Empleados de Ecoembes
-			Employee ana = new Employee(1, "Ana Garcia", "ana.garcia@ecoembes.com", "Ana#2026");
-			Employee luis = new Employee(2, "Luis Martinez", "luis.martinez@ecoembes.com", "Luis#2026");
-			Employee marta = new Employee(3, "Marta Lopez", "marta.lopez@ecoembes.com", "Marta#2026");
+			// La base de datos ya está inicializada
+			if (employeeRepository.count() > 0) {
+				logger.info("La base de datos ya contiene datos: no se insertan los datos de prueba");
+				return;
+			}
 
-			authService.addEmployee(ana);
-			authService.addEmployee(luis);
-			authService.addEmployee(marta);
+			// Empleados de Ecoembes
+			Employee ana = new Employee("Ana Garcia", "ana.garcia@ecoembes.com", "Ana#2026");
+			Employee luis = new Employee("Luis Martinez", "luis.martinez@ecoembes.com", "Luis#2026");
+			Employee marta = new Employee("Marta Lopez", "marta.lopez@ecoembes.com", "Marta#2026");
+
+			employeeRepository.saveAll(List.of(ana, luis, marta));
 			logger.info("Empleados guardados");
 
 			// Plantas de reciclaje (añadir una planta nueva solo requiere añadir datos aquí)

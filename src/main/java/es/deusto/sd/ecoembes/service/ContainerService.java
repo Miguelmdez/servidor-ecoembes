@@ -1,24 +1,20 @@
 package es.deusto.sd.ecoembes.service;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import es.deusto.sd.ecoembes.dao.ContainerReadingRepository;
+import es.deusto.sd.ecoembes.dao.ContainerRepository;
 import es.deusto.sd.ecoembes.entity.Container;
 import es.deusto.sd.ecoembes.entity.ContainerReading;
 import es.deusto.sd.ecoembes.entity.FillLevel;
 
-// Patrón AppService: lógica de negocio de los contenedores y de sus lecturas, junto con el ESTADO DEL
-// SERVIDOR (en el Prototipo 1 los datos viven en memoria, sin base de datos). Las estructuras son
-// concurrentes porque el bean es único y lo comparten todos los hilos de peticiones, además del
-// simulador de sensores.
+// Patrón AppService: lógica de negocio de los contenedores y de sus lecturas. Los datos se guardan en la
+// base de datos H2 a través de los repositorios (paquete dao). Los métodos que escriben son @Transactional:
+// cada uno se ejecuta como una unidad (o se guarda todo o nada).
 @Service
 public class ContainerService {
 
@@ -30,75 +26,63 @@ public class ContainerService {
 	public static final String CONTAINER_NOT_FOUND = "Contenedor no encontrado";
 	public static final String NO_READINGS_FOUND = "No se han encontrado lecturas";
 
-	// Contenedores indexados por su identificador
-	private final Map<String, Container> containerRepository = new ConcurrentHashMap<>();
+	private final ContainerRepository containerRepository;
+	private final ContainerReadingRepository readingRepository;
 
-	// Lecturas por contenedor, ordenadas por fecha. Al usar la fecha como clave solo puede haber una
-	// lectura por contenedor y día: una lectura nueva del mismo día reemplaza a la anterior.
-	private final Map<String, NavigableMap<LocalDate, ContainerReading>> readingStore = new ConcurrentHashMap<>();
+	public ContainerService(ContainerRepository containerRepository, ContainerReadingRepository readingRepository) {
+		this.containerRepository = containerRepository;
+		this.readingRepository = readingRepository;
+	}
 
 	// Crea un contenedor nuevo. Datos incorrectos -> INVALID_DATA; identificador repetido -> CONTAINER_ALREADY_EXISTS.
+	@Transactional
 	public Container createContainer(String containerId, String location, String postalCode, Float initialCapacity) {
 		if (isBlank(containerId) || isBlank(location) || isBlank(postalCode)
 				|| initialCapacity == null || initialCapacity <= 0) {
 			throw new RuntimeException(INVALID_DATA);
 		}
 
-		Container container = new Container(containerId, location, postalCode, initialCapacity);
-
-		// putIfAbsent es atómico: si dos peticiones crean el mismo identificador a la vez, solo una gana
-		if (containerRepository.putIfAbsent(containerId, container) != null) {
+		// Hay que comprobarlo explícitamente: como la clave la asigna el personal, save() sobre un
+		// identificador existente lo actualizaría en silencio en vez de fallar
+		if (containerRepository.existsById(containerId)) {
 			throw new RuntimeException(CONTAINER_ALREADY_EXISTS);
 		}
 
-		readingStore.put(containerId, new ConcurrentSkipListMap<>());
-
-		return container;
+		return containerRepository.save(new Container(containerId, location, postalCode, initialCapacity));
 	}
 
 	// Actualiza ubicación, código postal y capacidad inicial de un contenedor existente (el identificador no cambia).
 	// Datos incorrectos -> INVALID_DATA; contenedor desconocido -> CONTAINER_NOT_FOUND.
+	@Transactional
 	public Container updateContainer(String containerId, String location, String postalCode, Float initialCapacity) {
 		if (isBlank(containerId) || isBlank(location) || isBlank(postalCode)
 				|| initialCapacity == null || initialCapacity <= 0) {
 			throw new RuntimeException(INVALID_DATA);
 		}
 
-		Container container = containerRepository.get(containerId);
+		Container container = containerRepository.findById(containerId)
+				.orElseThrow(() -> new RuntimeException(CONTAINER_NOT_FOUND));
 
-		if (container == null) {
-			throw new RuntimeException(CONTAINER_NOT_FOUND);
-		}
+		container.setLocation(location);
+		container.setPostalCode(postalCode);
+		container.setInitialCapacity(initialCapacity);
 
-		// El contenedor es compartido por todos los hilos: se actualiza de forma atómica respecto a otras actualizaciones
-		synchronized (container) {
-			container.setLocation(location);
-			container.setPostalCode(postalCode);
-			container.setInitialCapacity(initialCapacity);
-		}
-
-		return container;
+		return containerRepository.save(container);
 	}
 
-	// Guarda una lectura del sensor; si ya había una de ese día, la reemplaza.
+	// Guarda una lectura del sensor; si ya había una de ese día, la reemplaza (misma clave compuesta).
 	// Datos incorrectos -> INVALID_DATA; contenedor desconocido -> CONTAINER_NOT_FOUND.
+	@Transactional
 	public ContainerReading addReading(String containerId, LocalDate date, Integer estimatedPackages, FillLevel fillLevel) {
 		if (isBlank(containerId) || date == null || estimatedPackages == null || estimatedPackages < 0
 				|| fillLevel == null) {
 			throw new RuntimeException(INVALID_DATA);
 		}
 
-		Container container = containerRepository.get(containerId);
-		NavigableMap<LocalDate, ContainerReading> readings = readingStore.get(containerId);
+		Container container = containerRepository.findById(containerId)
+				.orElseThrow(() -> new RuntimeException(CONTAINER_NOT_FOUND));
 
-		if (container == null || readings == null) {
-			throw new RuntimeException(CONTAINER_NOT_FOUND);
-		}
-
-		ContainerReading reading = new ContainerReading(container, date, fillLevel, estimatedPackages);
-		readings.put(date, reading);
-
-		return reading;
+		return readingRepository.save(new ContainerReading(container, date, fillLevel, estimatedPackages));
 	}
 
 	// Lecturas de un contenedor entre dos fechas (ambas incluidas), ordenadas por fecha.
@@ -109,13 +93,11 @@ public class ContainerService {
 			throw new RuntimeException(INVALID_DATES);
 		}
 
-		NavigableMap<LocalDate, ContainerReading> readings = containerId == null ? null : readingStore.get(containerId);
-
-		if (readings == null) {
+		if (containerId == null || !containerRepository.existsById(containerId)) {
 			throw new RuntimeException(CONTAINER_NOT_FOUND);
 		}
 
-		return new ArrayList<>(readings.subMap(startDate, true, endDate, true).values());
+		return readingRepository.findByContainerIdAndIdDateBetweenOrderByIdDate(containerId, startDate, endDate);
 	}
 
 	// Lecturas de todos los contenedores de un código postal en un día, ordenadas por identificador.
@@ -125,49 +107,34 @@ public class ContainerService {
 			throw new RuntimeException(INVALID_DATA);
 		}
 
-		List<ContainerReading> result = new ArrayList<>();
-
-		for (Container container : containerRepository.values()) {
-			if (postalCode.equals(container.getPostalCode())) {
-				ContainerReading reading = readingStore.get(container.getId()).get(date);
-
-				if (reading != null) {
-					result.add(reading);
-				}
-			}
-		}
+		List<ContainerReading> result = readingRepository.findByContainerPostalCodeAndIdDateOrderByContainerId(postalCode, date);
 
 		if (result.isEmpty()) {
 			throw new RuntimeException(NO_READINGS_FOUND);
 		}
-
-		result.sort((a, b) -> a.getContainer().getId().compareTo(b.getContainer().getId()));
 
 		return result;
 	}
 
 	// Contenedor por identificador, o null si no existe (lo usan otros servicios)
 	public Container getContainer(String containerId) {
-		return containerId == null ? null : containerRepository.get(containerId);
+		return containerId == null ? null : containerRepository.findById(containerId).orElse(null);
 	}
 
 	// Última lectura de un contenedor en la fecha indicada o antes, o null si no hay ninguna.
 	// Sirve para calcular los envases de un contenedor al asignarlo a una planta.
 	public ContainerReading getLatestReading(String containerId, LocalDate date) {
-		NavigableMap<LocalDate, ContainerReading> readings = containerId == null ? null : readingStore.get(containerId);
-
-		if (readings == null || date == null) {
+		if (containerId == null || date == null) {
 			return null;
 		}
 
-		Map.Entry<LocalDate, ContainerReading> entry = readings.floorEntry(date);
-
-		return entry == null ? null : entry.getValue();
+		return readingRepository.findFirstByContainerIdAndIdDateLessThanEqualOrderByIdDateDesc(containerId, date)
+				.orElse(null);
 	}
 
 	// Todos los contenedores (lo usa el simulador de sensores)
-	public Collection<Container> getContainers() {
-		return containerRepository.values();
+	public List<Container> getContainers() {
+		return containerRepository.findAll();
 	}
 
 	private boolean isBlank(String value) {
